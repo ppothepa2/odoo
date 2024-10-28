@@ -470,6 +470,25 @@
                                 </group>
                             </group>
                         </page>
+                        <page string="Maintenance Schedule" name="maintenance_schedule">
+                            <field name="maintenance_schedule_ids" context="{
+                                'default_equipment_id': active_id,
+                                'default_maintenance_type': 'preventive',
+                                'default_owner_user_id': uid,
+                                'default_company_id': company_id,
+                                'default_maintenance_team_id': maintenance_team_id
+                            }">
+                                <tree string="Maintenance Schedule">
+                                    <field name="name"/>
+                                    <field name="schedule_date"/>
+                                    <field name="user_id"/>
+                                    <field name="duration"/>
+                                    <field name="stage_id"/>
+                                    <field name="priority" widget="priority"/>
+                                    <field name="archive" invisible="1"/>
+                                </tree>
+                            </field>
+                        </page>
                     </notebook>
                 </sheet>
                 <div class="oe_chatter">

@@ -164,6 +164,14 @@ class MaintenanceEquipment(models.Model):
     scrap_date = fields.Date('Scrap Date')
     maintenance_ids = fields.One2many('maintenance.request', 'equipment_id')
 
+    # Add this field to the existing fields
+    maintenance_schedule_ids = fields.One2many(
+        'maintenance.request', 
+        'equipment_id',
+        domain=[('maintenance_type', '=', 'preventive')],
+        string='Maintenance Schedule'
+    )
+
     @api.onchange('category_id')
     def _onchange_category_id(self):
         self.technician_user_id = self.category_id.technician_user_id
@@ -307,18 +315,21 @@ class MaintenanceRequest(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # context: no_log, because subtype already handle this
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+            
+        for vals in vals_list:
+            # Set maintenance team from equipment if not specified
+            if vals.get('equipment_id') and not vals.get('maintenance_team_id'):
+                equipment = self.env['maintenance.equipment'].browse(vals['equipment_id'])
+                vals['maintenance_team_id'] = equipment.maintenance_team_id.id
+
+            # Set default name if not provided
+            if not vals.get('name') and vals.get('equipment_id'):
+                equipment = self.env['maintenance.equipment'].browse(vals['equipment_id'])
+                vals['name'] = _('Preventive Maintenance - %s') % equipment.name
+
         maintenance_requests = super().create(vals_list)
-        for request in maintenance_requests:
-            if request.owner_user_id or request.user_id:
-                request._add_followers()
-            if request.equipment_id and not request.maintenance_team_id:
-                request.maintenance_team_id = request.equipment_id.maintenance_team_id
-            if request.close_date and not request.stage_id.done:
-                request.close_date = False
-            if not request.close_date and request.stage_id.done:
-                request.close_date = fields.Date.today()
-        maintenance_requests.activity_update()
         return maintenance_requests
 
     def write(self, vals):
@@ -429,3 +440,5 @@ class MaintenanceTeam(models.Model):
     def _compute_equipment(self):
         for team in self:
             team.equipment_count = len(team.equipment_ids)
+
+
