@@ -172,6 +172,14 @@ class MaintenanceEquipment(models.Model):
         string='Maintenance Schedule'
     )
 
+    # Add this field to the existing fields
+    subcategory = fields.Selection([
+        ('forklift', 'Forklift'),
+        ('crane', 'Crane'),
+        ('conveyor', 'Conveyor'),
+        # Add more subcategories as needed
+    ], string='Subcategory')
+
     @api.onchange('category_id')
     def _onchange_category_id(self):
         self.technician_user_id = self.category_id.technician_user_id
@@ -275,6 +283,13 @@ class MaintenanceRequest(models.Model):
         ('until', 'Until'),
     ], default="forever", string="Until")
     repeat_until = fields.Date(string="End Date")
+
+    # Add this field definition
+    checklist_ids = fields.One2many(
+        'maintenance.checklist', 
+        'request_id', 
+        string='Checklists'
+    )
 
     def archive_equipment_request(self):
         self.write({'archive': True, 'recurring_maintenance': False})
@@ -397,6 +412,43 @@ class MaintenanceRequest(models.Model):
         stage_ids = stages._search([], order=order, access_rights_uid=SUPERUSER_ID)
         return stages.browse(stage_ids)
 
+    @api.onchange('equipment_id')
+    def _onchange_equipment(self):
+        if self.equipment_id:
+            # Clear existing checklist items
+            self.checklist_ids = [(5, 0, 0)]
+            
+            # Get predefined checklist items based on category and subcategory
+            checklist_items = self._get_checklist_items(
+                self.equipment_id.category_id.name,
+                self.equipment_id.subcategory
+            )
+            
+            # Create new checklist items
+            if checklist_items:
+                self.checklist_ids = [(0, 0, {'name': item}) for item in checklist_items]
+
+    def _get_checklist_items(self, category, subcategory):
+        # This is where we'll hardcode our checklist items
+        checklists = {
+            ('Machinery', 'forklift'): [
+                'Check hydraulic fluid levels',
+                'Inspect fork condition',
+                'Test brake system',
+                'Check tire condition',
+                'Verify safety features'
+            ],
+            ('Machinery', 'crane'): [
+                'Inspect cable condition',
+                'Check hook safety latch',
+                'Test limit switches',
+                'Verify emergency stops',
+                'Check oil levels'
+            ],
+            # Add more category/subcategory combinations as needed
+        }
+        return checklists.get((category, subcategory), [])
+
 
 class MaintenanceTeam(models.Model):
     _name = 'maintenance.team'
@@ -440,5 +492,33 @@ class MaintenanceTeam(models.Model):
     def _compute_equipment(self):
         for team in self:
             team.equipment_count = len(team.equipment_ids)
+
+
+class MaintenanceChecklist(models.Model):
+    _name = 'maintenance.checklist'
+    _description = 'Maintenance Checklist'
+    _order = 'sequence, id'
+
+    name = fields.Char('Description', required=True)
+    sequence = fields.Integer('Sequence', default=10)
+    done = fields.Boolean('Done', default=False)
+    is_checked = fields.Boolean('Checked', default=False)
+    observation = fields.Text('Observations', help="Add any observations about this checklist item")
+    request_id = fields.Many2one(
+        'maintenance.request', 
+        string='Maintenance Request',
+        required=True, 
+        ondelete='cascade'
+    )
+
+
+class MaintenanceChecklistItem(models.Model):
+    _name = 'maintenance.checklist.item'
+    _description = 'Maintenance Checklist Item'
+
+    request_id = fields.Many2one('maintenance.request', string='Maintenance Request')
+    name = fields.Char('Item Name', required=True)
+    is_checked = fields.Boolean('Checked', default=False)
+    observation = fields.Text('Observations')
 
 

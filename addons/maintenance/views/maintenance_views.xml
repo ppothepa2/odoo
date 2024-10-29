@@ -134,6 +134,15 @@
                         </group>
                     </group>
                     <notebook>
+                        <page string="Checklist" invisible="not checklist_ids">
+                            <field name="checklist_ids">
+                                <tree editable="bottom">
+                                    <field name="name" readonly="1"/>
+                                    <field name="is_checked"/>
+                                    <field name="observation"/>
+                                </tree>
+                            </field>
+                        </page>
                         <page string="Notes">
                             <field name='description' placeholder="Internal Notes"/>
                         </page>
