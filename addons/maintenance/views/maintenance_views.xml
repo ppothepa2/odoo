@@ -99,8 +99,9 @@
                     <group>
                         <group>
                             <field name="owner_user_id" string="Requested By" invisible="1"/>
-                            <field name="equipment_id"  context="{'default_company_id':company_id, 'default_category_id':category_id}"/>
+                            <field name="equipment_id" context="{'default_company_id':company_id, 'default_category_id':category_id}"/>
                             <field name="category_id" groups="maintenance.group_equipment_manager" context="{'default_company_id':company_id}" invisible="not equipment_id"/>
+                            <field name="subcategory" groups="maintenance.group_equipment_manager" context="{'default_company_id':company_id}" invisible="not equipment_id"/>
                             <field name="request_date" readonly="True"/>
                             <field name="done" invisible="1"/>
                             <field name="close_date" readonly="True" invisible="not done"/>
@@ -113,9 +114,8 @@
                             <field name="schedule_date"/>
                             <label for="duration"/>
                             <div>
-                                <field name="duration"
-                                       widget="float_time"
-                                       class="oe_inline"/> <span class="ml8">hours</span>
+                                <field name="duration" widget="float_time" class="oe_inline"/> 
+                                <span class="ml8">hours</span>
                             </div>
                             <label for="recurring_maintenance" invisible="maintenance_type == 'corrective'"/>
                             <div class="d-inline-flex" invisible="maintenance_type == 'corrective'">
@@ -123,10 +123,10 @@
                             </div>
                             <label for="repeat_interval" invisible="not recurring_maintenance"/>
                             <div class="d-flex" invisible="not recurring_maintenance">
-                                <field name="repeat_interval" required="recurring_maintenance" class="me-2" style="max-width: 2rem !important;" />
-                                <field name="repeat_unit" required="recurring_maintenance" class="me-2" style="max-width: 4rem !important;" />
-                                <field name="repeat_type" required="recurring_maintenance" class="me-2" style="max-width: 15rem !important;" />
-                                <field name="repeat_until" invisible="repeat_type != 'until'" required="repeat_type == 'until'" class="me-2" />
+                                <field name="repeat_interval" required="recurring_maintenance" class="me-2" style="max-width: 2rem !important;"/>
+                                <field name="repeat_unit" required="recurring_maintenance" class="me-2" style="max-width: 4rem !important;"/>
+                                <field name="repeat_type" required="recurring_maintenance" class="me-2" style="max-width: 15rem !important;"/>
+                                <field name="repeat_until" invisible="repeat_type != 'until'" required="repeat_type == 'until'" class="me-2"/>
                             </div>
                             <field name="priority" widget="priority"/>
                             <field name="email_cc" string="Email cc" groups="base.group_no_one"/>
@@ -140,10 +140,23 @@
                         <page string="Instructions">
                             <group col="1">
                                 <field name="instruction_type" widget="radio" nolabel="1"/>
-                                <field name="instruction_pdf" help="Upload your PDF file." widget="pdf_viewer" invisible="instruction_type != 'pdf'" required="instruction_type == 'pdf'" nolabel="1"/>
-                                <field name="instruction_google_slide" placeholder="Google Slide Link" widget="embed_viewer" invisible="instruction_type != 'google_slide'" required="instruction_type == 'google_slide'" nolabel="1"/>
-                                <field name="instruction_text" placeholder="Your instructions" invisible="instruction_type != 'text'" nolabel="1"/>
+                                <field name="instruction_pdf" help="Upload your PDF file." widget="pdf_viewer" 
+                                       invisible="instruction_type != 'pdf'" required="instruction_type == 'pdf'" nolabel="1"/>
+                                <field name="instruction_google_slide" placeholder="Google Slide Link" widget="embed_viewer" 
+                                       invisible="instruction_type != 'google_slide'" required="instruction_type == 'google_slide'" nolabel="1"/>
+                                <field name="instruction_text" placeholder="Your instructions" 
+                                       invisible="instruction_type != 'text'" nolabel="1"/>
                             </group>
+                        </page>
+                        <page string="Checklist" name="checklist">
+                            <field name="checklist_item_ids">
+                                <tree editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name" readonly="1"/>
+                                    <field name="is_checked"/>
+                                    <field name="observation"/>
+                                </tree>
+                            </field>
                         </page>
                     </notebook>
                 </sheet>
@@ -161,13 +174,13 @@
         <field name="model">maintenance.request</field>
         <field name="arch" type="xml">
             <kanban default_group_by="stage_id" sample="1">
-                <field name="stage_id"/>
+                <field name="category_id"/>
+                <field name="subcategory" invisible="not category_id"/>
                 <field name="color"/>
                 <field name="priority"/>
                 <field name="equipment_id"/>
                 <field name="user_id"/>
                 <field name="owner_user_id"/>
-                <field name="category_id"/>
                 <field name="kanban_state"/>
                 <field name="activity_ids" />
                 <field name="activity_state" />
@@ -192,8 +205,12 @@
                                     <b class="o_kanban_record_title"><field name="name"/></b>
                                 </div>
                                 <div class="o_kanban_record_body">
-                                    <span name="owner_user_id" t-if="record.owner_user_id.raw_value">Requested by: <field name="owner_user_id"/><br/></span>
-                                    <span class="oe_grey" t-if="record.equipment_id.raw_value"><field name="equipment_id"/><span t-if="record.category_id.raw_value"> (<field name="category_id"/>)</span><br/></span>
+                                    <span class="oe_grey" t-if="record.equipment_id.raw_value">
+                                        <field name="equipment_id"/>
+                                        <span t-if="record.category_id.raw_value"> (<field name="category_id"/>)</span>
+                                        <span t-if="record.subcategory.raw_value"> - <field name="subcategory"/></span>
+                                        <br/>
+                                    </span>
                                     <span name="schedule_date" t-if="record.schedule_date.raw_value"><field name="schedule_date"/><br/></span>
                                 </div>
                                 <div class="o_kanban_record_bottom">
@@ -224,13 +241,14 @@
         <field name="name">equipment.request.tree</field>
         <field name="model">maintenance.request</field>
         <field name="arch" type="xml">
-            <tree string="maintenance Request" multi_edit="1" sample="1">
+            <tree string="Maintenance Request" multi_edit="1" sample="1">
                 <field name="message_needaction" column_invisible="True"/>
                 <field name="name"/>
+                <field name="category_id"/>
+                <field name="subcategory" invisible="not category_id"/>
                 <field name="request_date" groups="base.group_no_one"/>
                 <field name="owner_user_id"/>
                 <field name="user_id"/>
-                <field name="category_id" readonly="1" groups="maintenance.group_equipment_manager"/>
                 <field name="stage_id"/>
                 <field name="company_id" readonly="1" groups="base.group_multi_company"/>
                 <field name="activity_exception_decoration" widget="activity_exception"/>
@@ -418,6 +436,7 @@
                         <group>
                             <field name="active" invisible="1"/>
                             <field name="category_id" options="{&quot;no_open&quot;: True}" context="{'default_company_id':company_id}"/>
+                            <field name="subcategory" invisible="not category_id"/>
                             <field name="company_id" groups="base.group_multi_company" options="{'no_create': True}"/>
                             <field name="owner_user_id" string="Owner"/>
                         </group>
@@ -470,25 +489,17 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Maintenance Schedule" name="maintenance_schedule">
-                            <field name="maintenance_schedule_ids" context="{
-                                'default_equipment_id': active_id,
-                                'default_maintenance_type': 'preventive',
-                                'default_owner_user_id': uid,
-                                'default_company_id': company_id,
-                                'default_maintenance_team_id': maintenance_team_id
-                            }">
-                                <tree string="Maintenance Schedule">
-                                    <field name="name"/>
-                                    <field name="schedule_date"/>
-                                    <field name="user_id"/>
-                                    <field name="duration"/>
-                                    <field name="stage_id"/>
-                                    <field name="priority" widget="priority"/>
-                                    <field name="archive" invisible="1"/>
-                                </tree>
-                            </field>
-                        </page>
+                        <page string="Maintenance Schedule">
+                        <field name="maintenance_schedule_ids">
+                            <tree>
+                                <field name="name"/>
+                                <field name="request_date"/>
+                                <field name="schedule_date"/>
+                                <field name="user_id"/>
+                                <field name="stage_id"/>
+                            </tree>
+                        </field>
+                    </page>
                     </notebook>
                 </sheet>
                 <div class="oe_chatter">
@@ -569,12 +580,12 @@
             <tree string="Assign To User" sample="1">
                 <field name="message_needaction" column_invisible="True"/>
                 <field name="name"/>
-                <!-- <field name="active" invisible="1"/> -->
+                <field name="category_id"/>
+                <field name="subcategory" invisible="not category_id"/>
                 <field name="owner_user_id" string="Owner"/>
                 <field name="assign_date" groups="base.group_no_one"/>
                 <field name="serial_no"/>
                 <field name="technician_user_id"/>
-                <field name="category_id"/>
                 <field name="partner_id" column_invisible="True"/>
                 <field name="company_id" groups="base.group_multi_company"/>
                 <field name="activity_exception_decoration" widget="activity_exception"/>
@@ -591,6 +602,7 @@
                     '|', '|', '|',
                     ('name', 'ilike', self), ('model', 'ilike', self), ('serial_no', 'ilike', self), ('partner_ref', 'ilike', self)]"/>
                 <field string="Category" name="category_id"/>
+                <field name="subcategory"/>
                 <field name="owner_user_id"/>
                 <filter string="My Equipment" name="my" domain="[('owner_user_id', '=', uid)]"/>
                 <filter string="Assigned" name="assigned" domain="[('owner_user_id', '!=', False)]"/>
