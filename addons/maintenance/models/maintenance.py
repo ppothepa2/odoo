@@ -442,51 +442,55 @@ class MaintenanceRequest(models.Model):
             # Clear existing checklist items
             self.checklist_item_ids = [(5, 0, 0)]
             
-            # Dictionary of predefined checklists based on category and subcategory
-            checklists = {
-                ('machinery', 'forklift'): [
-                    'Check hydraulic fluid levels',
-                    'Inspect fork condition and wear',
-                    'Test brake system functionality',
-                    'Check tire condition and pressure',
-                    'Inspect safety features (lights, horn, backup alarm)'
-                ],
-                ('machinery', 'crane'): [
-                    'Inspect wire ropes and chains',
-                    'Check hook and safety latch',
-                    'Test limit switches',
-                    'Check hydraulic system for leaks',
-                    'Verify load capacity indicators'
-                ],
-                ('machinery', 'conveyor'): [
-                    'Check belt tension and alignment',
-                    'Inspect rollers for wear',
-                    'Test emergency stop system',
-                    'Check motor and gearbox condition',
-                    'Inspect belt surface condition'
-                ],
-                # Add more categories and subcategories as needed
-            }
-            
             checklist_key = (category.name.lower(), subcategory.lower())
-            if checklist_key in checklists:
-                for sequence, item_name in enumerate(checklists[checklist_key], 1):
-                    self.checklist_item_ids = [(0, 0, {
-                        'name': item_name,
+            if checklist_key in self.get_checklist_items():
+                checklist_vals = []
+                for sequence, item_name in enumerate(self.get_checklist_items()[checklist_key], 1):
+                    _logger.debug(f"Creating checklist item: {item_name} with sequence: {sequence}")
+                    checklist_vals.append((0, 0, {
+                        'name': item_name,  # Ensure name is set
                         'sequence': sequence,
-                    })]
+                        'is_checked': False,
+                        'observation': False,
+                    }))
+                self.checklist_item_ids = checklist_vals
             else:
                 _logger.warning(f"No checklist found for Category: {category.name}, Subcategory: {subcategory}")
+
+    def get_checklist_items(self):
+        return {
+            ('machinery', 'forklift'): [
+                'Check hydraulic fluid levels',
+                'Inspect fork condition and wear',
+                'Test brake system functionality',
+                'Check tire condition and pressure',
+                'Inspect safety features (lights, horn, backup alarm)'
+            ],
+            ('machinery', 'crane'): [
+                'Inspect wire ropes and chains',
+                'Check hook and safety latch',
+                'Test limit switches',
+                'Check hydraulic system for leaks',
+                'Verify load capacity indicators'
+            ],
+            ('machinery', 'conveyor'): [
+                'Check belt tension and alignment',
+                'Inspect rollers for wear',
+                'Test emergency stop system',
+                'Check motor and gearbox condition',
+                'Inspect belt surface condition'
+            ],
+        }
 
 class MaintenanceChecklistItem(models.Model):
     _name = 'maintenance.checklist.item'
     _description = 'Maintenance Checklist Item'
     _order = 'sequence'
 
-    request_id = fields.Many2one('maintenance.request', string='Maintenance Request')
-    name = fields.Char('Item Name', required=True)
+    name = fields.Char('Item Name', required=True, index=True)
+    request_id = fields.Many2one('maintenance.request', string='Maintenance Request', ondelete='cascade')
     sequence = fields.Integer('Sequence', default=10)
-    is_checked = fields.Boolean('Checked')
+    is_checked = fields.Boolean('Checked', default=False)
     observation = fields.Text('Observations')
 
 
