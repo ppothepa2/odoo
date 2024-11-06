@@ -6,6 +6,9 @@ from odoo.exceptions import ValidationError
 from odoo import api, fields, models, SUPERUSER_ID, _
 from odoo.exceptions import UserError
 from odoo.osv import expression
+import logging
+
+_logger = logging.getLogger(__name__)
 
 
 class MaintenanceStage(models.Model):
@@ -164,6 +167,20 @@ class MaintenanceEquipment(models.Model):
     scrap_date = fields.Date('Scrap Date')
     maintenance_ids = fields.One2many('maintenance.request', 'equipment_id')
 
+    # Add this field to the existing fields
+    maintenance_schedule_ids = fields.One2many(
+        'maintenance.request', 
+        'equipment_id',
+        domain=[('maintenance_type', '=', 'preventive')],
+        string='Maintenance Schedule'
+    )
+    subcategory = fields.Selection([
+        ('forklift', 'Forklift'),
+        ('crane', 'Crane'),
+        ('conveyor', 'Conveyor'),
+        # Add more subcategories as needed
+    ], string='Subcategory')
+
     @api.onchange('category_id')
     def _onchange_category_id(self):
         self.technician_user_id = self.category_id.technician_user_id
@@ -193,6 +210,27 @@ class MaintenanceEquipment(models.Model):
         category_ids = categories._search([], order=order, access_rights_uid=SUPERUSER_ID)
         return categories.browse(category_ids)
 
+class MaintenanceChecklistTemplate(models.Model):
+    _name = 'maintenance.checklist.template'
+    _description = 'Maintenance Checklist Template'
+
+    name = fields.Char('Name', required=True)
+    category_id = fields.Many2one('maintenance.equipment.category', string='Category')
+    subcategory = fields.Selection([
+        ('forklift', 'Forklift'),
+        ('crane', 'Crane'),
+        ('conveyor', 'Conveyor'),
+        # Match with equipment subcategories
+    ], string='Subcategory')
+    item_ids = fields.One2many('maintenance.checklist.template.item', 'template_id', string='Checklist Items')
+
+class MaintenanceChecklistTemplateItem(models.Model):
+    _name = 'maintenance.checklist.template.item'
+    _description = 'Maintenance Checklist Template Item'
+
+    template_id = fields.Many2one('maintenance.checklist.template', string='Template')
+    name = fields.Char('Item Name', required=True)
+    sequence = fields.Integer('Sequence', default=10)
 
 class MaintenanceRequest(models.Model):
     _name = 'maintenance.request'
@@ -267,6 +305,9 @@ class MaintenanceRequest(models.Model):
         ('until', 'Until'),
     ], default="forever", string="Until")
     repeat_until = fields.Date(string="End Date")
+    checklist_item_ids = fields.One2many('maintenance.checklist.item', 'request_id', string='Checklist Items')
+
+    subcategory = fields.Selection(related='equipment_id.subcategory', string='Subcategory', store=True, readonly=True)
 
     def archive_equipment_request(self):
         self.write({'archive': True, 'recurring_maintenance': False})
@@ -307,18 +348,21 @@ class MaintenanceRequest(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # context: no_log, because subtype already handle this
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+            
+        for vals in vals_list:
+            # Set maintenance team from equipment if not specified
+            if vals.get('equipment_id') and not vals.get('maintenance_team_id'):
+                equipment = self.env['maintenance.equipment'].browse(vals['equipment_id'])
+                vals['maintenance_team_id'] = equipment.maintenance_team_id.id
+
+            # Set default name if not provided
+            if not vals.get('name') and vals.get('equipment_id'):
+                equipment = self.env['maintenance.equipment'].browse(vals['equipment_id'])
+                vals['name'] = _('Preventive Maintenance - %s') % equipment.name
+
         maintenance_requests = super().create(vals_list)
-        for request in maintenance_requests:
-            if request.owner_user_id or request.user_id:
-                request._add_followers()
-            if request.equipment_id and not request.maintenance_team_id:
-                request.maintenance_team_id = request.equipment_id.maintenance_team_id
-            if request.close_date and not request.stage_id.done:
-                request.close_date = False
-            if not request.close_date and request.stage_id.done:
-                request.close_date = fields.Date.today()
-        maintenance_requests.activity_update()
         return maintenance_requests
 
     def write(self, vals):
@@ -386,6 +430,69 @@ class MaintenanceRequest(models.Model):
         stage_ids = stages._search([], order=order, access_rights_uid=SUPERUSER_ID)
         return stages.browse(stage_ids)
 
+    @api.onchange('equipment_id')
+    def _onchange_equipment_id(self):
+        if self.equipment_id:
+            category = self.equipment_id.category_id
+            subcategory = self.equipment_id.subcategory
+            
+            _logger.info(f"Selected Equipment: {self.equipment_id.name}")
+            _logger.info(f"Category: {category.name}, Subcategory: {subcategory}")
+            
+            # Clear existing checklist items
+            self.checklist_item_ids = [(5, 0, 0)]
+            
+            checklist_key = (category.name.lower(), subcategory.lower())
+            if checklist_key in self.get_checklist_items():
+                checklist_vals = []
+                for sequence, item_name in enumerate(self.get_checklist_items()[checklist_key], 1):
+                    _logger.debug(f"Creating checklist item: {item_name} with sequence: {sequence}")
+                    checklist_vals.append((0, 0, {
+                        'name': item_name,  # Ensure name is set
+                        'sequence': sequence,
+                        'is_checked': False,
+                        'observation': False,
+                    }))
+                self.checklist_item_ids = checklist_vals
+            else:
+                _logger.warning(f"No checklist found for Category: {category.name}, Subcategory: {subcategory}")
+
+    def get_checklist_items(self):
+        return {
+            ('machinery', 'forklift'): [
+                'Check hydraulic fluid levels',
+                'Inspect fork condition and wear',
+                'Test brake system functionality',
+                'Check tire condition and pressure',
+                'Inspect safety features (lights, horn, backup alarm)'
+            ],
+            ('machinery', 'crane'): [
+                'Inspect wire ropes and chains',
+                'Check hook and safety latch',
+                'Test limit switches',
+                'Check hydraulic system for leaks',
+                'Verify load capacity indicators'
+            ],
+            ('machinery', 'conveyor'): [
+                'Check belt tension and alignment',
+                'Inspect rollers for wear',
+                'Test emergency stop system',
+                'Check motor and gearbox condition',
+                'Inspect belt surface condition'
+            ],
+        }
+
+class MaintenanceChecklistItem(models.Model):
+    _name = 'maintenance.checklist.item'
+    _description = 'Maintenance Checklist Item'
+    _order = 'sequence'
+
+    name = fields.Char('Item Name', required=True, index=True)
+    request_id = fields.Many2one('maintenance.request', string='Maintenance Request', ondelete='cascade')
+    sequence = fields.Integer('Sequence', default=10)
+    is_checked = fields.Boolean('Checked', default=False)
+    observation = fields.Text('Observations')
+
 
 class MaintenanceTeam(models.Model):
     _name = 'maintenance.team'
@@ -429,3 +536,5 @@ class MaintenanceTeam(models.Model):
     def _compute_equipment(self):
         for team in self:
             team.equipment_count = len(team.equipment_ids)
+
+
