@@ -607,7 +607,7 @@ class MaintenanceRequest(models.Model):
             self._create_recurring_requests()
         return True
 
-    @api.constrains('version', 'recurring_maintenance', 'maintenance_type')
+    @api.constrains('version', 'recurring_maintenance', 'maintenance_type', 'schedule_date')
     def _check_child_request_constraints(self):
         for request in self:
             if request.version == 'child':
@@ -615,14 +615,8 @@ class MaintenanceRequest(models.Model):
                     raise ValidationError(_("Child requests cannot be recurring."))
                 if request.maintenance_type != request.parent_id.maintenance_type:
                     raise ValidationError(_("Child request maintenance type must match parent request."))
-
-    def unlink(self):
-        """Prevent deletion of child requests directly"""
-        for request in self:
-            if request.version == 'child':
-                raise UserError(_("Child maintenance requests cannot be deleted directly. "
-                                "They are managed through the main request."))
-        return super().unlink()
+                if request.schedule_date != request.parent_id.schedule_date:
+                    raise ValidationError(_("Child request schedule date cannot be modified."))
 
     def write(self, vals):
         """Prevent modification of certain fields in child requests"""
@@ -635,7 +629,8 @@ class MaintenanceRequest(models.Model):
                     'repeat_interval',
                     'repeat_unit',
                     'repeat_type',
-                    'repeat_until'
+                    'repeat_until',
+                    'version'  # Prevent changing version
                 ]
                 if any(field in vals for field in restricted_fields):
                     raise UserError(_("Cannot modify maintenance type, schedule date, or "
@@ -651,7 +646,7 @@ class MaintenanceRequest(models.Model):
                 vals.update({
                     'recurring_maintenance': False,
                     'maintenance_type': parent.maintenance_type,
-                    'repeat_interval': 1,  # Set a default value
+                    'repeat_interval': False,
                     'repeat_unit': False,
                     'repeat_type': False,
                     'repeat_until': False,

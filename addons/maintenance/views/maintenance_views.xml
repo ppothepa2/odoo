@@ -118,28 +118,24 @@
                             <field name="done" invisible="1"/>
                             <field name="close_date" readonly="True" invisible="not done"/>
                             <field name="archive" invisible="1"/>
-                            <field name="maintenance_type" widget="radio"/>
-                        </group>
-                        <group>
-                            <field name="maintenance_team_id" options="{'no_create': True, 'no_open': True}"/>
-                            <field name="user_id" string="Responsible"/>
-                            <field name="schedule_date"/>
+                            <field name="maintenance_type" invisible="version == 'child'"/>
+                            <field name="schedule_date" readonly="version == 'child'"/>
                             <label for="duration"/>
                             <div>
                                 <field name="duration" widget="float_time" class="oe_inline"/> 
                                 <span class="ml8">hours</span>
                             </div>
-                            <label for="recurring_maintenance" invisible="maintenance_type == 'corrective'"/>
-                            <div class="d-inline-flex align-items-center" invisible="maintenance_type == 'corrective'">
+                            <label for="recurring_maintenance" invisible="maintenance_type == 'corrective' or version == 'child'"/>
+                            <div class="d-inline-flex align-items-center" invisible="maintenance_type == 'corrective' or version == 'child'">
                                 <field name="recurring_maintenance" nolabel="1" class="ms-0" style="width: fit-content;"/>
                                 <button name="action_confirm_recurring" 
                                         type="object" 
                                         string="Confirm Schedule" 
                                         class="btn btn-primary ms-2"
-                                        invisible="not recurring_maintenance"/>
+                                        invisible="not recurring_maintenance or version == 'child'"/>
                             </div>
-                            <label for="repeat_interval" invisible="not recurring_maintenance"/>
-                            <div class="d-flex" invisible="not recurring_maintenance">
+                            <label for="repeat_interval" invisible="not recurring_maintenance or version == 'child'"/>
+                            <div class="d-flex" invisible="not recurring_maintenance or version == 'child'">
                                 <field name="repeat_interval" required="recurring_maintenance" class="me-2" style="max-width: 2rem !important;"/>
                                 <field name="repeat_unit" required="recurring_maintenance" class="me-2" style="max-width: 4rem !important;"/>
                                 <field name="repeat_type" required="recurring_maintenance" class="me-2" style="max-width: 15rem !important;"/>
