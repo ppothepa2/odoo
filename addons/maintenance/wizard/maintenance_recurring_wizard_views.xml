@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_maintenance_recurring_wizard" model="ir.ui.view">
+        <field name="name">maintenance.recurring.wizard.form</field>
+        <field name="model">maintenance.recurring.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Confirm Recurring Maintenance">
+                <p class="alert alert-warning">
+                    Please confirm the recurring schedule. This can only be set once!
+                </p>
+                <group>
+                    <group>
+                        <field name="maintenance_request_id" invisible="1"/>
+                        <label for="repeat_interval"/>
+                        <div class="d-flex">
+                            <field name="repeat_interval" class="me-2" style="max-width: 2rem !important;"/>
+                            <field name="repeat_unit" class="me-2" style="max-width: 4rem !important;"/>
+                        </div>
+                    </group>
+                    <group>
+                        <field name="repeat_type"/>
+                        <field name="repeat_until" invisible="repeat_type != 'until'" 
+                               required="repeat_type == 'until'"/>
+                    </group>
+                </group>
+                <footer>
+                    <button string="Confirm" name="action_confirm" type="object" class="btn-primary"/>
+                    <button string="Retry" name="action_retry" type="object" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo> 

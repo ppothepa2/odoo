@@ -13,9 +13,8 @@ Track equipment and maintenance requests""",
     'data': [
         'security/maintenance.xml',
         'security/ir.model.access.csv',
-        'data/maintenance_data.xml',
-        'data/mail_activity_type_data.xml',
-        'data/mail_message_subtype_data.xml',
+        'wizard/maintenance_recurring_wizard_views.xml',
+        'views/maintenance_assets.xml',
         'views/maintenance_views.xml',
         'views/mail_activity_views.xml',
         'views/res_config_settings_views.xml',
@@ -25,7 +24,7 @@ Track equipment and maintenance requests""",
     'application': True,
     'assets': {
         'web.assets_backend': [
-            'maintenance/static/src/**/*',
+            'maintenance/static/src/scss/maintenance.scss',
         ],
         'web.assets_tests': [
             'maintenance/static/tests/tours/**/*',

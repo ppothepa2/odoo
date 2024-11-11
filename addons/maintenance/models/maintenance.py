@@ -309,6 +309,17 @@ class MaintenanceRequest(models.Model):
 
     subcategory = fields.Selection(related='equipment_id.subcategory', string='Subcategory', store=True, readonly=True)
 
+    # Add these new fields
+    version = fields.Selection([
+        ('main', 'Main'),
+        ('child', 'Child')
+    ], string='Version', default='main', required=True, tracking=True)
+    parent_id = fields.Many2one('maintenance.request', string='Parent Request', 
+                               ondelete='cascade', readonly=True)
+    child_ids = fields.One2many('maintenance.request', 'parent_id', 
+                               string='Child Requests', copy=False)
+    child_sequence = fields.Integer(string='Child Sequence', copy=False)
+
     def archive_equipment_request(self):
         self.write({'archive': True, 'recurring_maintenance': False})
 
@@ -318,11 +329,11 @@ class MaintenanceRequest(models.Model):
         # self.write({'active': True, 'stage_id': first_stage_obj.id})
         self.write({'archive': False, 'stage_id': first_stage_obj.id})
 
-    @api.constrains('repeat_interval')
+    @api.constrains('repeat_interval', 'recurring_maintenance')
     def _check_repeat_interval(self):
         for record in self:
-            if record.repeat_interval < 1:
-                raise ValidationError("Repeat Interval cannot be less than 1.")
+            if record.recurring_maintenance and record.repeat_interval < 1:
+                raise ValidationError(_("Repeat Interval cannot be less than 1."))
 
     @api.depends('company_id', 'equipment_id')
     def _compute_maintenance_team_id(self):
@@ -362,6 +373,13 @@ class MaintenanceRequest(models.Model):
                 equipment = self.env['maintenance.equipment'].browse(vals['equipment_id'])
                 vals['name'] = _('Preventive Maintenance - %s') % equipment.name
 
+            # Set version as 'main' if not specified and no parent_id
+            if not vals.get('version') and not vals.get('parent_id'):
+                vals['version'] = 'main'
+            # Set version as 'child' if there's a parent_id
+            elif vals.get('parent_id'):
+                vals['version'] = 'child'
+
         maintenance_requests = super().create(vals_list)
         return maintenance_requests
 
@@ -370,11 +388,14 @@ class MaintenanceRequest(models.Model):
         # the stage (stage_id) of the Maintenance Request changes.
         if vals and 'kanban_state' not in vals and 'stage_id' in vals:
             vals['kanban_state'] = 'normal'
-        if 'stage_id' in vals and self.maintenance_type == 'preventive' and self.recurring_maintenance and self.env['maintenance.stage'].browse(vals['stage_id']).done:
-            schedule_date = self.schedule_date or fields.Datetime.now()
-            schedule_date += relativedelta(**{f"{self.repeat_unit}s": self.repeat_interval})
-            if self.repeat_type == 'forever' or schedule_date.date() <= self.repeat_until:
-                self.copy({'schedule_date': schedule_date, 'stage_id': self._default_stage().id})
+        
+        # Create recurring requests when main request is marked as done
+        if ('stage_id' in vals or 'recurring_maintenance' in vals) and self.maintenance_type == 'preventive':
+            stage = self.env['maintenance.stage'].browse(vals.get('stage_id', self.stage_id.id))
+            if stage.done and (self.recurring_maintenance or vals.get('recurring_maintenance')):
+                if self.version == 'main':
+                    self._create_recurring_requests()
+                
         res = super(MaintenanceRequest, self).write(vals)
         if vals.get('owner_user_id') or vals.get('user_id'):
             self._add_followers()
@@ -481,6 +502,161 @@ class MaintenanceRequest(models.Model):
                 'Inspect belt surface condition'
             ],
         }
+
+    def _create_recurring_requests(self):
+        self.ensure_one()
+        if not self.recurring_maintenance or self.version != 'main':
+            return
+
+        # Get the last child sequence number
+        last_child = self.child_ids.sorted('child_sequence', reverse=True)[:1]
+        next_sequence = (last_child.child_sequence or 0) + 1
+
+        # Calculate next schedule date
+        schedule_date = self.schedule_date or fields.Datetime.now()
+        
+        # Generate child requests until repeat_until or indefinitely
+        while True:
+            schedule_date += relativedelta(**{f"{self.repeat_unit}s": self.repeat_interval})
+            
+            # Check if we should stop generating requests
+            if self.repeat_type == 'until' and schedule_date.date() > self.repeat_until:
+                break
+
+            # Create child request
+            child_vals = {
+                'name': f"{self.name} - Child {next_sequence}",
+                'equipment_id': self.equipment_id.id,
+                'maintenance_type': self.maintenance_type,
+                'schedule_date': schedule_date,
+                'parent_id': self.id,
+                'child_sequence': next_sequence,
+                'maintenance_team_id': self.maintenance_team_id.id,
+                'user_id': self.user_id.id,
+                'duration': self.duration,
+                'priority': self.priority,
+                'version': 'child',
+                # Add these additional fields
+                'category_id': self.category_id.id,
+                'description': self.description,
+                'company_id': self.company_id.id,
+                'owner_user_id': self.owner_user_id.id,
+                'instruction_type': self.instruction_type,
+                'instruction_text': self.instruction_text,
+                'instruction_pdf': self.instruction_pdf,
+                'instruction_google_slide': self.instruction_google_slide,
+            }
+            self.env['maintenance.request'].create(child_vals)
+            next_sequence += 1
+
+            # If repeat type is forever, limit to 52 occurrences (1 year) for safety
+            if self.repeat_type == 'forever' and next_sequence > 52:
+                break
+
+    def write(self, vals):
+        res = super().write(vals)
+        
+        # Generate child requests when recurring maintenance is enabled
+        if 'recurring_maintenance' in vals or any(f in vals for f in ['repeat_interval', 'repeat_unit', 'repeat_type', 'repeat_until']):
+            for request in self:
+                if request.recurring_maintenance and request.maintenance_type == 'preventive' and request.version == 'main':
+                    # Clear existing child requests
+                    request.child_ids.unlink()
+                    # Create new child requests
+                    request._create_recurring_requests()
+        
+        return res
+
+    def action_open_child_request(self):
+        """Opens the child maintenance request in form view."""
+        self.ensure_one()
+        return {
+            'name': _('Child Maintenance Request'),
+            'view_mode': 'form',
+            'res_model': 'maintenance.request',
+            'res_id': self.id,
+            'type': 'ir.actions.act_window',
+            'target': 'current',
+        }
+
+    def action_confirm_recurring(self):
+        """Opens confirmation wizard for recurring maintenance."""
+        self.ensure_one()
+        return {
+            'name': _('Confirm Recurring Maintenance'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'maintenance.recurring.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_maintenance_request_id': self.id,
+                'default_repeat_interval': self.repeat_interval,
+                'default_repeat_unit': self.repeat_unit,
+                'default_repeat_type': self.repeat_type,
+                'default_repeat_until': self.repeat_until,
+            }
+        }
+
+    def confirm_and_create_recurring(self):
+        """Called after confirmation to create recurring requests."""
+        self.ensure_one()
+        if self.recurring_maintenance and self.maintenance_type == 'preventive' and self.version == 'main':
+            # Clear existing child requests
+            self.child_ids.unlink()
+            # Create new child requests
+            self._create_recurring_requests()
+        return True
+
+    @api.constrains('version', 'recurring_maintenance', 'maintenance_type')
+    def _check_child_request_constraints(self):
+        for request in self:
+            if request.version == 'child':
+                if request.recurring_maintenance:
+                    raise ValidationError(_("Child requests cannot be recurring."))
+                if request.maintenance_type != request.parent_id.maintenance_type:
+                    raise ValidationError(_("Child request maintenance type must match parent request."))
+
+    def unlink(self):
+        """Prevent deletion of child requests directly"""
+        for request in self:
+            if request.version == 'child':
+                raise UserError(_("Child maintenance requests cannot be deleted directly. "
+                                "They are managed through the main request."))
+        return super().unlink()
+
+    def write(self, vals):
+        """Prevent modification of certain fields in child requests"""
+        for request in self:
+            if request.version == 'child':
+                restricted_fields = [
+                    'maintenance_type', 
+                    'schedule_date', 
+                    'recurring_maintenance',
+                    'repeat_interval',
+                    'repeat_unit',
+                    'repeat_type',
+                    'repeat_until'
+                ]
+                if any(field in vals for field in restricted_fields):
+                    raise UserError(_("Cannot modify maintenance type, schedule date, or "
+                                    "recurring settings in child requests."))
+        return super().write(vals)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Set default values for child requests"""
+        for vals in vals_list:
+            if vals.get('version') == 'child':
+                parent = self.browse(vals.get('parent_id'))
+                vals.update({
+                    'recurring_maintenance': False,
+                    'maintenance_type': parent.maintenance_type,
+                    'repeat_interval': 1,  # Set a default value
+                    'repeat_unit': False,
+                    'repeat_type': False,
+                    'repeat_until': False,
+                })
+        return super().create(vals_list)
 
 class MaintenanceChecklistItem(models.Model):
     _name = 'maintenance.checklist.item'

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="maintenance.assets_backend" model="ir.asset">
+            <field name="name">Maintenance backend assets</field>
+            <field name="bundle">web.assets_backend</field>
+            <field name="path">maintenance/static/src/scss/maintenance.scss</field>
+        </record>
+    </data>
+</odoo> 

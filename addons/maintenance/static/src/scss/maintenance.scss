@@ -1,0 +1,7 @@
+.o_list_view {
+    tr[data-id][data-version="child"] {
+        td.o_data_cell:first-child {
+            padding-left: 2rem !important;
+        }
+    }
+} 
