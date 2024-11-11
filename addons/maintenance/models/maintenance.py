@@ -607,51 +607,41 @@ class MaintenanceRequest(models.Model):
             self._create_recurring_requests()
         return True
 
-    @api.constrains('version', 'recurring_maintenance', 'maintenance_type', 'schedule_date')
-    def _check_child_request_constraints(self):
-        for request in self:
-            if request.version == 'child':
-                if request.recurring_maintenance:
-                    raise ValidationError(_("Child requests cannot be recurring."))
-                if request.maintenance_type != request.parent_id.maintenance_type:
-                    raise ValidationError(_("Child request maintenance type must match parent request."))
-                if request.schedule_date != request.parent_id.schedule_date:
-                    raise ValidationError(_("Child request schedule date cannot be modified."))
-
     def write(self, vals):
-        """Prevent modification of certain fields in child requests"""
+        """Consolidated write method with proper handling of schedule dates"""
+        # Handle schedule date updates first
+        if 'schedule_date' in vals:
+            # If this is a main request, update child request schedule dates
+            for request in self.filtered(lambda r: r.version == 'main'):
+                base_date = fields.Datetime.from_string(vals['schedule_date'])
+                for child in request.child_ids:
+                    # Calculate new schedule date based on sequence and repeat settings
+                    new_date = base_date + relativedelta(**{
+                        f"{request.repeat_unit}s": request.repeat_interval * child.child_sequence
+                    })
+                    # Use super().write to bypass the child schedule date restriction
+                    super(MaintenanceRequest, child).write({'schedule_date': new_date})
+        
+        # Check other restrictions for child requests
         for request in self:
             if request.version == 'child':
                 restricted_fields = [
                     'maintenance_type', 
-                    'schedule_date', 
                     'recurring_maintenance',
                     'repeat_interval',
                     'repeat_unit',
                     'repeat_type',
                     'repeat_until',
-                    'version'  # Prevent changing version
+                    'version'
                 ]
-                if any(field in vals for field in restricted_fields):
-                    raise UserError(_("Cannot modify maintenance type, schedule date, or "
+                # Only check restrictions for fields other than schedule_date
+                restricted_updates = set(restricted_fields) & set(vals.keys())
+                if restricted_updates:
+                    raise UserError(_("Cannot modify maintenance type or "
                                     "recurring settings in child requests."))
+        
+        # Proceed with the standard write
         return super().write(vals)
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        """Set default values for child requests"""
-        for vals in vals_list:
-            if vals.get('version') == 'child':
-                parent = self.browse(vals.get('parent_id'))
-                vals.update({
-                    'recurring_maintenance': False,
-                    'maintenance_type': parent.maintenance_type,
-                    'repeat_interval': False,
-                    'repeat_unit': False,
-                    'repeat_type': False,
-                    'repeat_until': False,
-                })
-        return super().create(vals_list)
 
 class MaintenanceChecklistItem(models.Model):
     _name = 'maintenance.checklist.item'
