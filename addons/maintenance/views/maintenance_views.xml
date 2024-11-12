@@ -135,11 +135,25 @@
                                         invisible="not recurring_maintenance or version == 'child'"/>
                             </div>
                             <label for="repeat_interval" invisible="not recurring_maintenance or version == 'child'"/>
-                            <div class="d-flex" invisible="not recurring_maintenance or version == 'child'">
-                                <field name="repeat_interval" required="recurring_maintenance" class="me-2" style="max-width: 2rem !important;"/>
-                                <field name="repeat_unit" required="recurring_maintenance" class="me-2" style="max-width: 4rem !important;"/>
-                                <field name="repeat_type" required="recurring_maintenance" class="me-2" style="max-width: 15rem !important;"/>
-                                <field name="repeat_until" invisible="repeat_type != 'until'" required="repeat_type == 'until'" class="me-2"/>
+                            <div class="d-flex align-items-center" invisible="not recurring_maintenance or version == 'child'">
+                                <field name="repeat_interval" 
+                                       required="recurring_maintenance" 
+                                       class="me-2" 
+                                       style="max-width: 4rem !important;"/>
+                                <field name="repeat_unit" 
+                                       required="recurring_maintenance" 
+                                       class="me-2" 
+                                       style="max-width: 6rem !important;"/>
+                                <field name="repeat_type" 
+                                       required="recurring_maintenance" 
+                                       class="me-2" 
+                                       style="max-width: 8rem !important;"/>
+                                <field name="repeat_until" 
+                                       widget="date" 
+                                       invisible="repeat_type != 'until'" 
+                                       required="repeat_type == 'until'" 
+                                       class="me-2"
+                                       style="max-width: 8rem !important;"/>
                             </div>
                             <field name="priority" widget="priority"/>
                             <field name="email_cc" string="Email cc" groups="base.group_no_one"/>
@@ -153,8 +167,15 @@
                         <page string="Instructions">
                             <group col="1">
                                 <field name="instruction_type" widget="radio" nolabel="1"/>
-                                <field name="instruction_pdf" help="Upload your PDF file." widget="pdf_viewer" 
-                                       invisible="instruction_type != 'pdf'" required="instruction_type == 'pdf'" nolabel="1"/>
+                                <field name="instruction_pdf" 
+                                       filename="instruction_pdf_filename"
+                                       help="Upload your PDF file." 
+                                       widget="pdf_viewer" 
+                                       options="{'accepted_file_extensions': '.pdf'}"
+                                       invisible="instruction_type != 'pdf'" 
+                                       required="instruction_type == 'pdf'" 
+                                       nolabel="1"/>
+                                <field name="instruction_pdf_filename" invisible="1"/>
                                 <field name="instruction_google_slide" placeholder="Google Slide Link" widget="embed_viewer" 
                                        invisible="instruction_type != 'google_slide'" required="instruction_type == 'google_slide'" nolabel="1"/>
                                 <field name="instruction_text" placeholder="Your instructions" 
@@ -1225,7 +1246,10 @@
                     <group>
                         <field name="repeat_type"/>
                         <field name="repeat_until" invisible="repeat_type != 'until'" 
-                               required="repeat_type == 'until'"/>
+                               required="repeat_type == 'until'"
+                               force_save="1"
+                               class="me-2"
+                               style="max-width: 8rem !important;"/>
                     </group>
                 </group>
                 <footer>

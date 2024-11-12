@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-<data noupdate="1">
+<data noupdate="0">
 
     <!-- Standard stages for Maintenance Request -->
     <record id="stage_0" model="maintenance.stage">
@@ -14,13 +14,13 @@
         <field name="fold" eval="False" />
     </record>
     <record id="stage_3" model="maintenance.stage">
-        <field name="name">Repaired</field>
+        <field name="name">Completed</field>
         <field name="sequence" eval="3" />
         <field name="fold" eval="True" />
         <field name="done" eval="True" />
     </record>
     <record id="stage_4" model="maintenance.stage">
-        <field name="name">Scrap</field>
+        <field name="name">Ready for QA Review</field>
         <field name="sequence" eval="4" />
         <field name="fold" eval="True" />
         <field name="done" eval="True" />

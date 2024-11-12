@@ -289,7 +289,8 @@ class MaintenanceRequest(models.Model):
         ('pdf', 'PDF'), ('google_slide', 'Google Slide'), ('text', 'Text')],
         string="Instruction", default="text"
     )
-    instruction_pdf = fields.Binary('PDF')
+    instruction_pdf = fields.Binary('PDF', attachment=True, copy=False)
+    instruction_pdf_filename = fields.Char('PDF Filename')
     instruction_google_slide = fields.Char('Google Slide', help="Paste the url of your Google Slide. Make sure the access to the document is public.")
     instruction_text = fields.Html('Text')
     recurring_maintenance = fields.Boolean(string="Recurrent", compute='_compute_recurring_maintenance', store=True, readonly=False)
@@ -304,7 +305,10 @@ class MaintenanceRequest(models.Model):
         ('forever', 'Forever'),
         ('until', 'Until'),
     ], default="forever", string="Until")
-    repeat_until = fields.Date(string="End Date")
+    repeat_until = fields.Date(
+        string='Repeat Until', 
+        default=fields.Date.to_string(fields.Date.today() + relativedelta(year=2024, month=12, day=30))
+    )
     checklist_item_ids = fields.One2many('maintenance.checklist.item', 'request_id', string='Checklist Items')
 
     subcategory = fields.Selection(related='equipment_id.subcategory', string='Subcategory', store=True, readonly=True)
@@ -642,6 +646,11 @@ class MaintenanceRequest(models.Model):
         
         # Proceed with the standard write
         return super().write(vals)
+
+    @api.onchange('repeat_type')
+    def _onchange_repeat_type(self):
+        if self.repeat_type == 'until' and not self.repeat_until:
+            self.repeat_until = fields.Date.to_string(fields.Date.today() + relativedelta(year=2024, month=12, day=30))
 
 class MaintenanceChecklistItem(models.Model):
     _name = 'maintenance.checklist.item'
