@@ -186,9 +186,11 @@
                             <field name="checklist_item_ids">
                                 <tree editable="bottom">
                                     <field name="sequence" widget="handle"/>
-                                    <field name="name" required="true"/>
+                                    <field name="name" readonly="1"/>
                                     <field name="is_checked"/>
                                     <field name="observation"/>
+                                    <field name="checked_by"/>
+                                    <field name="checked_at"/>
                                 </tree>
                             </field>
                         </page>

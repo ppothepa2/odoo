@@ -363,28 +363,23 @@ class MaintenanceRequest(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        if isinstance(vals_list, dict):
-            vals_list = [vals_list]
-            
-        for vals in vals_list:
-            # Set maintenance team from equipment if not specified
-            if vals.get('equipment_id') and not vals.get('maintenance_team_id'):
-                equipment = self.env['maintenance.equipment'].browse(vals['equipment_id'])
-                vals['maintenance_team_id'] = equipment.maintenance_team_id.id
-
-            # Set default name if not provided
-            if not vals.get('name') and vals.get('equipment_id'):
-                equipment = self.env['maintenance.equipment'].browse(vals['equipment_id'])
-                vals['name'] = _('Preventive Maintenance - %s') % equipment.name
-
-            # Set version as 'main' if not specified and no parent_id
-            if not vals.get('version') and not vals.get('parent_id'):
-                vals['version'] = 'main'
-            # Set version as 'child' if there's a parent_id
-            elif vals.get('parent_id'):
-                vals['version'] = 'child'
-
         maintenance_requests = super().create(vals_list)
+        
+        for request in maintenance_requests:
+            # If this is a child request, copy checklist items from parent
+            if request.parent_id and request.version == 'child':
+                checklist_vals = []
+                for parent_item in request.parent_id.checklist_item_ids:
+                    checklist_vals.append({
+                        'name': parent_item.name,
+                        'sequence': parent_item.sequence,
+                        'request_id': request.id,
+                        'is_checked': False,  # Start unchecked
+                        'observation': '',    # Start with empty observation
+                    })
+                if checklist_vals:
+                    self.env['maintenance.checklist.item'].create(checklist_vals)
+        
         return maintenance_requests
 
     def write(self, vals):
@@ -473,7 +468,7 @@ class MaintenanceRequest(models.Model):
                 for sequence, item_name in enumerate(self.get_checklist_items()[checklist_key], 1):
                     _logger.debug(f"Creating checklist item: {item_name} with sequence: {sequence}")
                     checklist_vals.append((0, 0, {
-                        'name': item_name,  # Ensure name is set
+                        'name': item_name,
                         'sequence': sequence,
                         'is_checked': False,
                         'observation': False,
@@ -550,7 +545,18 @@ class MaintenanceRequest(models.Model):
                 'instruction_pdf': self.instruction_pdf,
                 'instruction_google_slide': self.instruction_google_slide,
             }
-            self.env['maintenance.request'].create(child_vals)
+            child_request = self.env['maintenance.request'].create(child_vals)
+
+            # Create checklist items for the child request
+            for item in self.checklist_item_ids:
+                self.env['maintenance.checklist.item'].create({
+                    'name': item.name,
+                    'sequence': item.sequence,
+                    'request_id': child_request.id,
+                    'is_checked': False,  # Start unchecked
+                    'observation': '',    # Start with empty observation
+                })
+
             next_sequence += 1
 
             # If repeat type is forever, limit to 52 occurrences (1 year) for safety
@@ -662,6 +668,18 @@ class MaintenanceChecklistItem(models.Model):
     sequence = fields.Integer('Sequence', default=10)
     is_checked = fields.Boolean('Checked', default=False)
     observation = fields.Text('Observations')
+    checked_by = fields.Many2one('res.users', string='Checked By', readonly=True)
+    checked_at = fields.Datetime('Checked At', readonly=True)
+
+    @api.onchange('is_checked')
+    def _onchange_is_checked(self):
+        for item in self:
+            if item.is_checked:
+                item.checked_by = self.env.user.id
+                item.checked_at = fields.Datetime.now()
+            else:
+                item.checked_by = False
+                item.checked_at = False
 
 
 class MaintenanceTeam(models.Model):
