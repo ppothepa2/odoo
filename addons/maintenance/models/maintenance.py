@@ -22,6 +22,7 @@ class MaintenanceStage(models.Model):
     sequence = fields.Integer('Sequence', default=20)
     fold = fields.Boolean('Folded in Maintenance Pipe')
     done = fields.Boolean('Request Done')
+    stage_sequence = fields.Integer('Stage Sequence', default=1)
 
 
 class MaintenanceEquipmentCategory(models.Model):
@@ -658,6 +659,24 @@ class MaintenanceRequest(models.Model):
         if self.repeat_type == 'until' and not self.repeat_until:
             self.repeat_until = fields.Date.to_string(fields.Date.today() + relativedelta(year=2024, month=12, day=30))
 
+    @api.constrains('stage_id')
+    def _check_stage_sequence(self):
+        for request in self:
+            if request.stage_id and request.stage_id.sequence < request._origin.stage_id.sequence:
+                raise ValidationError(_("You cannot move a maintenance request to a previous stage. Forward progression only."))
+
+    def write(self, vals):
+        # If trying to change stage
+        if 'stage_id' in vals:
+            new_stage = self.env['maintenance.stage'].browse(vals['stage_id'])
+            for request in self:
+                # Prevent moving back to "New Request" if already "In Progress"
+                if (request.stage_id.sequence > new_stage.sequence or
+                    (request.stage_id.name == 'In Progress' and new_stage.name == 'New Request')):
+                    raise UserError(_("Cannot move maintenance request backwards in stages."))
+
+        return super().write(vals)
+
 class MaintenanceChecklistItem(models.Model):
     _name = 'maintenance.checklist.item'
     _description = 'Maintenance Checklist Item'
@@ -671,15 +690,45 @@ class MaintenanceChecklistItem(models.Model):
     checked_by = fields.Many2one('res.users', string='Checked By', readonly=True)
     checked_at = fields.Datetime('Checked At', readonly=True)
 
-    @api.onchange('is_checked')
-    def _onchange_is_checked(self):
+    @api.depends('request_id.stage_id')
+    def _compute_readonly_state(self):
         for item in self:
-            if item.is_checked:
-                item.checked_by = self.env.user.id
-                item.checked_at = fields.Datetime.now()
+            item.readonly_state = (
+                item.request_id.stage_id.name == 'New Request' or 
+                item.request_id.stage_id.done
+            )
+
+    readonly_state = fields.Boolean(
+        string='Readonly State', 
+        compute='_compute_readonly_state', 
+        store=True
+    )
+
+    def write(self, vals):
+        """Override write to handle checkbox state changes"""
+        if 'is_checked' in vals:
+            if vals['is_checked']:
+                vals.update({
+                    'checked_by': self.env.user.id,
+                    'checked_at': fields.Datetime.now()
+                })
             else:
-                item.checked_by = False
-                item.checked_at = False
+                vals.update({
+                    'checked_by': False,
+                    'checked_at': False
+                })
+        return super().write(vals)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Override create to handle initial checkbox state"""
+        for vals in vals_list:
+            if vals.get('is_checked'):
+                vals.update({
+                    'checked_by': self.env.user.id,
+                    'checked_at': fields.Datetime.now()
+                })
+        return super().create(vals_list)
 
 
 class MaintenanceTeam(models.Model):

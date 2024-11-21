@@ -183,14 +183,15 @@
                             </group>
                         </page>
                         <page string="Checklist" name="checklist">
-                            <field name="checklist_item_ids">
+                            <field name="checklist_item_ids" editable="bottom" options="{'no_create': True, 'no_delete': True}">
                                 <tree editable="bottom">
                                     <field name="sequence" widget="handle"/>
-                                    <field name="name" readonly="1"/>
-                                    <field name="is_checked"/>
-                                    <field name="observation"/>
-                                    <field name="checked_by"/>
-                                    <field name="checked_at"/>
+                                    <field name="name" readonly="1" force_save="1"/>
+                                    <field name="is_checked" readonly="readonly_state"/>
+                                    <field name="observation" readonly="readonly_state"/>
+                                    <field name="checked_by" readonly="1"/>
+                                    <field name="checked_at" readonly="1"/>
+                                    <field name="readonly_state" invisible="1"/>
                                 </tree>
                             </field>
                         </page>
