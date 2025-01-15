@@ -12,6 +12,7 @@ Track equipment and maintenance requests""",
     'website': 'https://www.odoo.com/app/maintenance',
     'data': [
         'security/maintenance.xml',
+        'security/maintenance_security.xml',
         'security/ir.model.access.csv',
         'wizard/maintenance_recurring_wizard_views.xml',
         'views/maintenance_assets.xml',

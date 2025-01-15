@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Create category for Maintenance -->
+    <record id="module_category_maintenance" model="ir.module.category">
+        <field name="name">Equipment Maintenance</field>
+        <field name="description">Helps you manage your equipment maintenance workflows</field>
+        <field name="sequence">20</field>
+    </record>
+
+    <!-- Maintenance Team Group -->
+    <record id="group_maintenance_team" model="res.groups">
+        <field name="name">Maintenance Team</field>
+        <field name="category_id" ref="module_category_maintenance"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- Accounting Team Group -->
+    <record id="group_accounting_team" model="res.groups">
+        <field name="name">Accounting Team</field>
+        <field name="category_id" ref="module_category_maintenance"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- Make Admin inherit both groups -->
+    <record id="base.group_system" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_maintenance_team')), (4, ref('group_accounting_team'))]"/>
+    </record>
+</odoo> 
