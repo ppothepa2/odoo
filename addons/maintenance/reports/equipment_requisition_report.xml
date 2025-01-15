@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template id="report_equipment_requisition">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>Equipment Requisition</h2>
+                        <div class="row mt32 mb32">
+                            <div class="col-6">
+                                <strong>Equipment:</strong> <span t-field="doc.name"/><br/>
+                                <strong>Requester:</strong> <span t-field="doc.requester_name"/><br/>
+                                <strong>Department:</strong> <span t-field="doc.department"/><br/>
+                                <strong>Request Date:</strong> <span t-field="doc.request_date"/>
+                            </div>
+                            <div class="col-6">
+                                <strong>Quantity:</strong> <span t-field="doc.quantity"/><br/>
+                                <strong>Expected Cost:</strong> <span t-field="doc.expected_cost"/><br/>
+                                <strong>Priority:</strong> <span t-field="doc.priority"/>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <strong>Description:</strong>
+                                <p t-field="doc.description"/>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <strong>Additional Notes:</strong>
+                                <p t-field="doc.notes"/>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_equipment_requisition" model="ir.actions.report">
+        <field name="name">Equipment Requisition</field>
+        <field name="model">maintenance.requisition</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">maintenance.report_equipment_requisition</field>
+        <field name="report_file">maintenance.report_equipment_requisition</field>
+        <field name="print_report_name">'Equipment_Requisition_%s' % object.name</field>
+        <field name="binding_model_id" ref="model_maintenance_requisition"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>

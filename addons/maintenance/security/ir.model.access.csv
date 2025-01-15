@@ -10,3 +10,4 @@ access_maintenance_equipment_category_user,maintenance.equipment.category.user,m
 access_maintenance_equipment_category_admin,maintenance.equipment.category.admin,model_maintenance_equipment_category,maintenance.group_equipment_manager,1,1,1,1
 access_maintenance_checklist_item_user,maintenance.checklist.item.user,model_maintenance_checklist_item,base.group_user,1,1,1,1
 access_maintenance_recurring_wizard_user,maintenance.recurring.wizard.user,model_maintenance_recurring_wizard,base.group_user,1,1,1,1
+access_maintenance_requisition_user,maintenance.requisition.user,model_maintenance_requisition,base.group_user,1,1,1,1

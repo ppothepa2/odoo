@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="mail_template_equipment_requisition" model="mail.template">
+            <field name="name">Equipment Requisition - Send by Email</field>
+            <field name="model_id" ref="model_maintenance_requisition"/>
+            <field name="email_from">{{ user.email_formatted }}</field>
+            <field name="email_to">parichay2406@gmail.com</field>
+            <field name="subject">New Equipment Requisition: {{ object.name }}</field>
+            <field name="body_html" type="html">
+                <div style="margin: 0px; padding: 0px;">
+                    <p>Hello,</p>
+                    <p>A new equipment requisition has been submitted with the following details:</p>
+                    <ul>
+                        <li>Equipment: {{ object.name }}</li>
+                        <li>Requester: {{ object.requester_name }}</li>
+                        <li>Department: {{ object.department }}</li>
+                        <li>Quantity: {{ object.quantity }}</li>
+                        <li>Expected Cost: {{ object.expected_cost }}</li>
+                        <li>Priority: {{ object.priority }}</li>
+                        <li>Request Date: {{ object.request_date }}</li>
+                    </ul>
+                    <p>Description:</p>
+                    <p>{{ object.description or 'N/A' }}</p>
+                    <p>Additional Notes:</p>
+                    <p>{{ object.notes or 'N/A' }}</p>
+                    <p>Please find the detailed requisition form attached.</p>
+                    <br/>
+                    <p>Best regards</p>
+                </div>
+            </field>
+        </record>
+    </data>
+</odoo>
