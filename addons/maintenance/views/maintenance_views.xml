@@ -481,35 +481,30 @@
         <field name="arch" type="xml">
             <form string="Equipment">
                 <sheet>
-                    <field name="company_id" invisible="1"/>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="%(hr_equipment_request_action_from_equipment)d"
-                            type="action"
-                            class="oe_stat_button"
-                            context="{'search_default_active': True, 'default_company_id': company_id, 'default_maintenance_team_id': maintenance_team_id}"
-                            icon="fa-wrench">
-                            <field string="Maintenance" name="maintenance_open_count" widget="statinfo"/>
-                        </button>
-                    </div>
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <div class="oe_title">
-                        <label for="name"/>
-                        <h1><field name="name" string="Name" placeholder="e.g. LED Monitor"/></h1>
+                        <group>
+                            <field name="requisition_id" 
+                                   options="{'no_create': True, 'no_open': True}" 
+                                   placeholder="Select Requisition Number"/>
+                            <field name="name" placeholder="e.g. Manufacturing Printer"/>
+                        </group>
                     </div>
                     <group>
                         <group>
-                            <field name="active" invisible="1"/>
-                            <field name="category_id" options="{&quot;no_open&quot;: True}" context="{'default_company_id':company_id}"/>
+                            <field name="category_id"/>
                             <field name="subcategory" invisible="not category_id"/>
-                            <field name="company_id" groups="base.group_multi_company" options="{'no_create': True}"/>
-                            <field name="owner_user_id" string="Owner"/>
+                            <field name="owner_user_id"/>
+                            <field name="technician_user_id"/>
+                            <field name="maintenance_team_id"/>
+                            <field name="company_id" invisible="1"/>
                         </group>
                         <group>
-                            <field name="maintenance_team_id" context="{'default_company_id':company_id}"/>
-                            <field name="technician_user_id" domain="[('share', '=', False)]"/>
-                            <field name="assign_date" groups="base.group_no_one"/>
-                            <field name="scrap_date" groups="base.group_no_one"/>
-                            <field name="location" string="Used in location"/>
+                            <field name="partner_id" string="Vendor"/>
+                            <field name="partner_ref" string="Vendor Reference"/>
+                            <field name="location"/>
+                            <field name="model"/>
+                            <field name="serial_no"/>
+                            <field name="cost"/>
                         </group>
                     </group>
                     <notebook>
@@ -524,7 +519,6 @@
                                     <field name="model"/>
                                     <field name="serial_no"/>
                                 </group><group>
-                                    <field name="effective_date"/>
                                     <field name="cost" groups="maintenance.group_equipment_manager"/>
                                     <field name="warranty_date"/>
                                 </group>
@@ -1033,12 +1027,10 @@
                     <t t-name="kanban-box">
                         <div t-attf-class="#{!selection_mode ? kanban_color(record.color.raw_value) : ''}">
                             <div t-attf-class="o_kanban_card_header">
-                                <div class="o_kanban_card_header_title">
-                                    <div class="o_primary">
-                                        <a name="%(hr_equipment_todo_request_action_from_dashboard)d" type="action">
-                                            <field name="name"/>
-                                        </a></div>
-                                </div>
+                                <div class="o_primary">
+                                    <a name="%(hr_equipment_todo_request_action_from_dashboard)d" type="action">
+                                        <field name="name"/>
+                                    </a></div>
                             </div>
                             <div class="container o_kanban_card_content">
                                 <div class="row">

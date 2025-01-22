@@ -9,6 +9,7 @@ class MaintenanceRequisition(models.Model):
     _description = 'Equipment Requisition'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'is_summary desc, card_color_order desc, requisition_number desc'
+    _rec_name = 'requisition_number'
 
     requisition_number = fields.Char('Requisition Number', readonly=True, copy=False, tracking=True)
     name = fields.Char('Equipment Name', required=True, tracking=True)
@@ -51,6 +52,7 @@ class MaintenanceRequisition(models.Model):
         ('po_pending', 'PO Pending'),
         ('inspection', 'Inspection'),
         ('done', 'Done'),
+        ('registered_with_equipment', 'Registered with Equipment'),
         ('rejected', 'Rejected')
     ], default='draft', string='Status', tracking=True)
 
@@ -58,7 +60,6 @@ class MaintenanceRequisition(models.Model):
     vendor = fields.Char('Vendor', tracking=True)
     vendor_reference = fields.Char('Vendor Reference', tracking=True)
     model = fields.Char('Model', tracking=True)
-    effective_date = fields.Date('Effective Date', tracking=True)
     cost = fields.Float('Cost', tracking=True)
     warranty_expiration_date = fields.Date('Warranty Expiration Date', tracking=True)
 
@@ -118,6 +119,32 @@ class MaintenanceRequisition(models.Model):
         compute='_compute_stats',
         store=False
     )
+
+    purchase_cost = fields.Float(
+        'Purchase Cost', 
+        tracking=True,
+        copy=False
+    )
+    
+    stats_purchase_cost = fields.Float(
+        string='Statistics Purchase Cost',
+        compute='_compute_stats',
+        store=False
+    )
+
+    # Add these new fields
+    category_id = fields.Many2one(
+        'maintenance.equipment.category', 
+        string='Equipment Category',
+        tracking=True
+    )
+    
+    subcategory = fields.Selection([
+        ('forklift', 'Forklift'),
+        ('crane', 'Crane'),
+        ('conveyor', 'Conveyor'),
+        # Add more subcategories as needed
+    ], string='Subcategory', tracking=True)
 
     @api.depends('requisition_number')
     def _compute_is_temporary(self):
@@ -285,6 +312,7 @@ class MaintenanceRequisition(models.Model):
             if not record.is_summary:
                 record.stats_count = 0
                 record.stats_cost = 0
+                record.stats_purchase_cost = 0
                 continue
 
             if 'Quarter' in record.name:
@@ -307,3 +335,4 @@ class MaintenanceRequisition(models.Model):
             records = self.search(domain)
             record.stats_count = len(records)
             record.stats_cost = sum(records.mapped('expected_cost'))
+            record.stats_purchase_cost = sum(r.purchase_cost for r in records if r.purchase_cost)

@@ -88,7 +88,6 @@ class MaintenanceMixin(models.AbstractModel):
 
     company_id = fields.Many2one('res.company', string='Company',
         default=lambda self: self.env.company)
-    effective_date = fields.Date('Effective Date', default=fields.Date.context_today, required=True, help="This date will be used to compute the Mean Time Between Failure.")
     maintenance_team_id = fields.Many2one('maintenance.team', string='Maintenance Team', compute='_compute_maintenance_team_id', store=True, readonly=False, check_company=True)
     technician_user_id = fields.Many2one('res.users', string='Technician', tracking=True)
     maintenance_ids = fields.One2many('maintenance.request')  # needs to be extended in order to specify inverse_name !
@@ -106,7 +105,7 @@ class MaintenanceMixin(models.AbstractModel):
             if record.maintenance_team_id.company_id and record.maintenance_team_id.company_id.id != record.company_id.id:
                 record.maintenance_team_id = False
 
-    @api.depends('effective_date', 'maintenance_ids.stage_id', 'maintenance_ids.close_date', 'maintenance_ids.request_date')
+    @api.depends('maintenance_ids.stage_id', 'maintenance_ids.close_date', 'maintenance_ids.request_date')
     def _compute_maintenance_request(self):
         for record in self:
             maintenance_requests = record.maintenance_ids.filtered(lambda mr: mr.maintenance_type == 'corrective' and mr.stage_id.done)
@@ -127,6 +126,49 @@ class MaintenanceEquipment(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin', 'maintenance.mixin']
     _description = 'Maintenance Equipment'
     _check_company_auto = True
+
+    requisition_id = fields.Many2one(
+        'maintenance.requisition',
+        string='Requisition Number',
+        domain="[('state', '=', 'done')]",
+        tracking=True
+    )
+
+    @api.onchange('requisition_id')
+    def _onchange_requisition_id(self):
+        if self.requisition_id:
+            # Map only existing fields
+            self.name = self.requisition_id.name
+            self.category_id = self.requisition_id.category_id
+            self.subcategory = self.requisition_id.subcategory
+            self.cost = self.requisition_id.cost
+            self.partner_id = self.requisition_id.vendor
+            self.partner_ref = self.requisition_id.vendor_reference
+            self.model = self.requisition_id.model
+
+    def action_register_equipment(self):
+        self.ensure_one()
+        if not self.requisition_id:
+            raise UserError(_("Please select a requisition number first."))
+            
+        # Update equipment state
+        self.state = 'registered'
+        
+        # Update requisition stage to "Registered with Equipment"
+        self.requisition_id.write({
+            'state': 'registered_with_equipment'
+        })
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Success'),
+                'message': _('Equipment has been successfully registered.'),
+                'type': 'success',
+                'sticky': False,
+            }
+        }
 
     def _track_subtype(self, init_values):
         self.ensure_one()
