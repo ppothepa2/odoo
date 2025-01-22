@@ -27,4 +27,5 @@
     </record>
 
 </data>
+    <function model="maintenance.requisition" name="create_summary_cards"/>
 </odoo>

@@ -10,6 +10,12 @@
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="requisition_number" placeholder="Draft Requisition"/>
+                        </h1>
+                    </div>
+                    
                     <!-- Section 1: Initial Request -->
                     <div class="o_form_section" name="section_initial_request">
                         <h2>
@@ -39,6 +45,20 @@
                         <notebook>
                             <page string="Description">
                                 <field name="description" readonly="state != 'draft'"/>
+                            </page>
+                            <page string="Product Information">
+                                <group>
+                                    <group>
+                                        <field name="vendor" readonly="state != 'draft'"/>
+                                        <field name="vendor_reference" readonly="state != 'draft'"/>
+                                        <field name="model" readonly="state != 'draft'"/>
+                                    </group>
+                                    <group>
+                                        <field name="effective_date" readonly="state != 'draft'"/>
+                                        <field name="cost" readonly="state != 'draft'"/>
+                                        <field name="warranty_expiration_date" readonly="state != 'draft'"/>
+                                    </group>
+                                </group>
                             </page>
                             <page string="Additional Notes">
                                 <field name="notes" readonly="state != 'draft'"/>
@@ -149,6 +169,7 @@
         <field name="model">maintenance.requisition</field>
         <field name="arch" type="xml">
             <tree>
+                <field name="requisition_number"/>
                 <field name="name"/>
                 <field name="requester_name"/>
                 <field name="department"/>
@@ -159,11 +180,122 @@
         </field>
     </record>
 
+    <!-- Kanban View -->
+    <record id="view_maintenance_requisition_kanban" model="ir.ui.view">
+        <field name="name">maintenance.requisition.kanban</field>
+        <field name="model">maintenance.requisition</field>
+        <field name="arch" type="xml">
+            <kanban default_order="is_summary desc, card_color_order desc, requisition_number desc" 
+                    class="o_kanban_dashboard">
+                <field name="requisition_number"/>
+                <field name="name"/>
+                <field name="state"/>
+                <field name="priority"/>
+                <field name="days_remaining"/>
+                <field name="card_color"/>
+                <field name="card_color_order"/>
+                <field name="expected_cost"/>
+                <field name="is_summary"/>
+                <field name="stats_count"/>
+                <field name="stats_cost"/>
+                
+                <templates>
+                    <t t-name="kanban-box">
+                        <t t-if="record.is_summary.raw_value === true">
+                            <div class="col-6 px-0">
+                                <div t-attf-class="oe_kanban_card {{record.name.raw_value.includes('Quarter') ? 'bg-info' : 'bg-primary'}} text-white" 
+                                     style="margin: 4px; height: 160px;">
+                                    <div class="oe_kanban_details p-3">
+                                        <strong class="h4">
+                                            <t t-if="record.name.raw_value.includes('Quarter')">This Quarter</t>
+                                            <t t-else="">This Year</t>
+                                        </strong>
+                                        <div class="row mt-3">
+                                            <div class="col-6">
+                                                <div class="text-white-50">No of Requisitions</div>
+                                                <div class="h5" t-esc="record.stats_count.value"/>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="text-white-50">Est Cost Requested</div>
+                                                <div class="h5">$<t t-esc="record.stats_cost.value"/></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div t-attf-class="oe_kanban_global_click {{
+                                record.card_color.raw_value == 'red' ? 'bg-danger text-white' : 
+                                record.card_color.raw_value == 'yellow' ? 'bg-warning' :
+                                record.card_color.raw_value == 'green' ? 'bg-success text-white' : ''
+                            }}">
+                                <div class="oe_kanban_details">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="requisition_number"/>
+                                    </strong>
+                                    <div class="o_kanban_record_subtitle">
+                                        <field name="name"/>
+                                    </div>
+                                    <div class="mt-2">
+                                        <field name="priority" widget="priority"/>
+                                    </div>
+                                    <div t-attf-class="{{(record.card_color.raw_value == 'red' || record.card_color.raw_value == 'green') ? 'text-white' : ''}}">
+                                        Status: <field name="state"/>
+                                    </div>
+                                    <t t-if="record.state.raw_value == 'submitted'">
+                                        <div class="mt-2">
+                                            <strong>
+                                                <t t-if="record.days_remaining.raw_value > 0">
+                                                    Approval due in <field name="days_remaining"/> days
+                                                </t>
+                                                <t t-else="">
+                                                    Approval Overdue
+                                                </t>
+                                            </strong>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_maintenance_requisition_search" model="ir.ui.view">
+        <field name="name">maintenance.requisition.search</field>
+        <field name="model">maintenance.requisition</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="requisition_number"/>
+                <field name="name"/>
+                <field name="requester_name"/>
+                <field name="department"/>
+                <filter string="Draft" name="draft" domain="[('state','=','draft')]"/>
+                <filter string="Submitted" name="submitted" domain="[('state','=','submitted')]"/>
+                <filter string="Under Review" name="under_review" domain="[('state','=','accounting_review')]"/>
+                <filter string="PO Pending" name="po_pending" domain="[('state','=','po_pending')]"/>
+                <filter string="Inspection" name="inspection" domain="[('state','=','inspection')]"/>
+                <filter string="Done" name="done" domain="[('state','=','done')]"/>
+                <filter string="Rejected" name="rejected" domain="[('state','=','rejected')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Status" name="group_by_state" context="{'group_by':'state'}"/>
+                    <filter string="Department" name="group_by_department" context="{'group_by':'department'}"/>
+                    <filter string="Priority" name="group_by_priority" context="{'group_by':'priority'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <!-- Action -->
     <record id="action_maintenance_requisition" model="ir.actions.act_window">
         <field name="name">Equipment Requisitions</field>
         <field name="res_model">maintenance.requisition</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="view_maintenance_requisition_search"/>
     </record>
 
     <!-- Menu Item -->
