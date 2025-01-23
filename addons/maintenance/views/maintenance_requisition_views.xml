@@ -31,8 +31,13 @@
                         <group>
                             <group>
                                 <field name="name" readonly="state != 'draft'"/>
-                                <field name="category_id" readonly="state != 'draft'"/>
-                                <field name="subcategory" readonly="state != 'draft'"/>
+                                <field name="category_id" 
+                                       options="{'no_create': True, 'no_open': True}"
+                                       readonly="state != 'draft'"/>
+                                <field name="subcategory_id" 
+                                       options="{'no_create': True, 'no_open': True}"
+                                       context="{'default_category_id': category_id}"
+                                       readonly="state != 'draft'"/>
                                 <field name="quantity" readonly="state != 'draft'"/>
                                 <field name="expected_cost" readonly="state != 'draft'"/>
                                 <field name="priority" readonly="state != 'draft'"/>
@@ -195,30 +200,25 @@
         <field name="name">maintenance.requisition.kanban</field>
         <field name="model">maintenance.requisition</field>
         <field name="arch" type="xml">
-            <kanban default_order="is_summary desc, card_color_order desc, requisition_number desc" 
-                    class="o_kanban_dashboard">
-                <field name="requisition_number"/>
+            <kanban default_order="is_summary desc, card_color_order desc, requisition_number desc" class="o_kanban_dashboard">
+                <field name="is_summary"/>
                 <field name="name"/>
+                <field name="requisition_number"/>
                 <field name="state"/>
-                <field name="priority"/>
                 <field name="days_remaining"/>
                 <field name="card_color"/>
-                <field name="card_color_order"/>
-                <field name="expected_cost"/>
-                <field name="is_summary"/>
                 <field name="stats_count"/>
                 <field name="stats_cost"/>
                 <field name="stats_purchase_cost"/>
                 
                 <templates>
                     <t t-name="kanban-box">
-                        <div class="col-4 p-1">
-                            <t t-if="record.is_summary.raw_value === true">
-                                <div class="oe_kanban_card bg-dark" style="height: 110px;">
+                        <div t-attf-class="col-4 p-1">
+                            <t t-if="record.is_summary.raw_value">
+                                <div class="oe_kanban_card rounded" style="height: 90px; background-color: #2b2b2b;">
                                     <div class="p-2">
-                                        <div class="text-white small mb-2 font-weight-bold">
-                                            <t t-if="record.name.raw_value.includes('Quarter')">This Quarter</t>
-                                            <t t-else="">This Year</t>
+                                        <div class="text-white small mb-1 font-weight-bold">
+                                            <t t-esc="record.name.raw_value"/>
                                         </div>
                                         <div class="row">
                                             <div class="col-6">
@@ -239,24 +239,13 @@
                                 </div>
                             </t>
                             <t t-else="">
-                                <div t-attf-class="oe_kanban_card oe_kanban_global_click {{
-                                    record.state.raw_value == 'submitted' ? 'soft-red' : 
-                                    record.state.raw_value == 'inspection' ? 'soft-yellow' :
-                                    record.state.raw_value == 'done' ? 'soft-green' : ''
-                                }}" style="height: 110px;">
-                                    <style>
-                                        .soft-red { background-color: #F04444 !important; }
-                                        .soft-yellow { background-color: #FFC107 !important; }
-                                        .soft-green { background-color: #2FB344 !important; }
-                                        .oe_kanban_card {
-                                            padding: 8px !important;
-                                            border-radius: 4px !important;
-                                            border: none !important;
-                                            box-shadow: none !important;
-                                        }
-                                        .text-black { color: #000000 !important; }
-                                    </style>
-                                    <div class="p-1">
+                                <div class="oe_kanban_global_click oe_kanban_card rounded" 
+                                     t-attf-style="height: 90px; background-color: #{
+                                        record.state.raw_value == 'submitted' ? '#dc3545' :
+                                        record.state.raw_value == 'po_pending' ? '#ffc107' :
+                                        record.state.raw_value == 'inspection' ? '#ffc107' :
+                                        record.state.raw_value == 'done' ? '#28a745' : 'white'};">
+                                    <div class="p-2">
                                         <div class="d-flex justify-content-between mb-1">
                                             <div class="small font-weight-bold text-black">
                                                 <field name="requisition_number"/>
@@ -272,7 +261,7 @@
                                                 </div>
                                             </t>
                                         </div>
-                                        <div class="small mb-1 text-black">
+                                        <div class="small mb-1 text-black text-truncate">
                                             <field name="name"/>
                                         </div>
                                         <div class="small text-black">

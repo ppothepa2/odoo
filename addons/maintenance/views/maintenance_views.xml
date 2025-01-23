@@ -83,7 +83,7 @@
         <field name="name">equipment.request.form</field>
         <field name="model">maintenance.request</field>
         <field name="arch" type="xml">
-            <form>
+            <form string="Maintenance Request">
                 <field name="version" invisible="1"/>
                 <field name="company_id" invisible="1"/>
                 <field name="category_id" invisible="1"/>
@@ -111,15 +111,17 @@
                     <group>
                         <group>
                             <field name="owner_user_id" string="Requested By" invisible="1"/>
-                            <field name="equipment_id"/>
-                            <field name="category_id" groups="maintenance.group_equipment_manager" context="{'default_company_id':company_id}" invisible="not equipment_id"/>
-                            <field name="subcategory" groups="maintenance.group_equipment_manager" context="{'default_company_id':company_id}" invisible="not equipment_id"/>
+                            <field name="equipment_id" context="{'default_company_id': company_id}"/>
+                            <field name="category_id" groups="maintenance.group_equipment_manager" 
+                                   context="{'default_company_id':company_id}" 
+                                   invisible="not equipment_id"/>
                             <field name="request_date" readonly="True"/>
                             <field name="done" invisible="1"/>
                             <field name="close_date" readonly="True" invisible="not done"/>
                             <field name="archive" invisible="1"/>
                             <field name="maintenance_type" invisible="version == 'child'"/>
                             <field name="schedule_date" readonly="version == 'child'"/>
+                            <field name="subcategory_id" readonly="1"/>
                             <label for="duration"/>
                             <div>
                                 <field name="duration" widget="float_time" class="oe_inline"/> 
@@ -306,6 +308,7 @@
                 <field name="name"/>
                 <field name="version" decoration-info="version == 'main'" decoration-muted="version == 'child'"/>
                 <field name="equipment_id"/>
+                <field name="category_id"/>
                 <field name="user_id"/>
                 <field name="schedule_date"/>
                 <field name="stage_id"/>
@@ -476,88 +479,73 @@
 
     <!-- equiment: views -->
     <record id="hr_equipment_view_form" model="ir.ui.view">
-        <field name="name">equipment.form</field>
+        <field name="name">maintenance.equipment.form</field>
         <field name="model">maintenance.equipment</field>
         <field name="arch" type="xml">
             <form string="Equipment">
+                <header>
+                    <button name="action_register_equipment" 
+                            string="Register Equipment" 
+                            type="object" 
+                            class="oe_highlight"/>
+                    <field name="stage_id" widget="statusbar" options="{'clickable': '1'}"/>
+                </header>
                 <sheet>
+                    <field name="company_id" invisible="1"/>
+                    <field name="name_readonly" invisible="1"/>
+                    <field name="category_readonly" invisible="1"/>
+                    <field name="subcategory_readonly" invisible="1"/>
+                    <field name="owner_readonly" invisible="1"/>
+                    <field name="technician_readonly" invisible="1"/>
+                    <field name="team_readonly" invisible="1"/>
+                    <field name="vendor_readonly" invisible="1"/>
+                    <field name="vendor_ref_readonly" invisible="1"/>
+                    <field name="serial_readonly" invisible="1"/>
+                    <field name="model_readonly" invisible="1"/>
+                    <field name="cost_readonly" invisible="1"/>
+                    <field name="warranty_readonly" invisible="1"/>
+                    
                     <div class="oe_title">
-                        <group>
-                            <field name="requisition_id" 
-                                   options="{'no_create': True, 'no_open': True}" 
-                                   placeholder="Select Requisition Number"/>
-                            <field name="name" placeholder="e.g. Manufacturing Printer"/>
-                        </group>
+                        <h1>
+                            <field name="name" placeholder="Equipment Name" readonly="name_readonly"/>
+                        </h1>
                     </div>
                     <group>
                         <group>
-                            <field name="category_id"/>
-                            <field name="subcategory" invisible="not category_id"/>
-                            <field name="owner_user_id"/>
-                            <field name="technician_user_id"/>
-                            <field name="maintenance_team_id"/>
-                            <field name="company_id" invisible="1"/>
+                            <field name="requisition_id"/>
+                            <field name="is_manual_override"/>
+                            <field name="category_id" readonly="category_readonly"/>
+                            <field name="subcategory_id" readonly="subcategory_readonly"
+                                   domain="[('category_id', '=', category_id)]"/>
+                            <field name="owner_user_id" readonly="owner_readonly"/>
+                            <field name="technician_user_id" readonly="technician_readonly"/>
+                            <field name="maintenance_team_id" readonly="team_readonly"
+                                   domain="[('company_id', '=', company_id)]"/>
                         </group>
                         <group>
-                            <field name="partner_id" string="Vendor"/>
-                            <field name="partner_ref" string="Vendor Reference"/>
-                            <field name="location"/>
-                            <field name="model"/>
-                            <field name="serial_no"/>
-                            <field name="cost"/>
+                            <field name="partner_id" readonly="vendor_readonly"/>
+                            <field name="partner_ref" readonly="vendor_ref_readonly"/>
+                            <field name="serial_no" readonly="serial_readonly"/>
+                            <field name="model" readonly="model_readonly"/>
+                            <field name="cost" readonly="cost_readonly"/>
+                            <field name="warranty_date" readonly="warranty_readonly"/>
                         </group>
                     </group>
                     <notebook>
-                        <page string="Description" name="description">
+                        <page string="Maintenance" name="maintenance">
+                            <field name="maintenance_ids" readonly="1">
+                                <tree>
+                                    <field name="name"/>
+                                    <field name="stage_id"/>
+                                    <field name="schedule_date"/>
+                                    <field name="user_id"/>
+                                    <field name="duration"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Notes" name="notes">
                             <field name="note"/>
                         </page>
-                        <page string="Product Information" name="product_information">
-                            <group>
-                                <group>
-                                    <field name="partner_id"/>
-                                    <field name="partner_ref"/>
-                                    <field name="model"/>
-                                    <field name="serial_no"/>
-                                </group><group>
-                                    <field name="cost" groups="maintenance.group_equipment_manager"/>
-                                    <field name="warranty_date"/>
-                                </group>
-                            </group>
-                        </page>
-                        <page string="Maintenance" name="maintenance">
-                            <group>
-                                <group name="statistics">
-                                    <label for="expected_mtbf" string="Expected Mean Time Between Failure"/>
-                                    <div class="o_row">
-                                        <field name="expected_mtbf"/> days
-                                    </div>
-                                    <label for="mtbf" string="Mean Time Between Failure"/>
-                                    <div class="o_row">
-                                        <field name="mtbf" /> days
-                                    </div>
-                                    <label for="estimated_next_failure" string="Estimated Next Failure"/>
-                                    <div class="o_row">
-                                        <field name="estimated_next_failure" />
-                                    </div>
-                                    <field name="latest_failure_date" string="Latest Failure" />
-                                    <label for="mttr" string="Mean Time To Repair"/>
-                                    <div class="o_row">
-                                        <field name="mttr" /> days
-                                    </div>
-                                </group>
-                            </group>
-                        </page>
-                        <page string="Maintenance Schedule">
-                        <field name="maintenance_schedule_ids">
-                            <tree>
-                                <field name="name"/>
-                                <field name="request_date"/>
-                                <field name="schedule_date"/>
-                                <field name="user_id"/>
-                                <field name="stage_id"/>
-                            </tree>
-                        </field>
-                    </page>
                     </notebook>
                 </sheet>
                 <div class="oe_chatter">
@@ -639,12 +627,11 @@
                 <field name="message_needaction" column_invisible="True"/>
                 <field name="name"/>
                 <field name="category_id"/>
-                <field name="subcategory" invisible="not category_id"/>
                 <field name="owner_user_id" string="Owner"/>
                 <field name="assign_date" groups="base.group_no_one"/>
                 <field name="serial_no"/>
                 <field name="technician_user_id"/>
-                <field name="partner_id" column_invisible="True"/>
+                <field name="partner_id"/>
                 <field name="company_id" groups="base.group_multi_company"/>
                 <field name="activity_exception_decoration" widget="activity_exception"/>
             </tree>
@@ -655,20 +642,22 @@
         <field name="name">equipment.search</field>
         <field name="model">maintenance.equipment</field>
         <field name="arch" type="xml">
-            <search string="Search">
-                <field string="Equipment" name="name" filter_domain="[
-                    '|', '|', '|',
-                    ('name', 'ilike', self), ('model', 'ilike', self), ('serial_no', 'ilike', self), ('partner_ref', 'ilike', self)]"/>
+            <search string="Equipment Search">
+                <field name="name" string="Equipment"/>
                 <field string="Category" name="category_id"/>
-                <field name="subcategory"/>
+                <field name="subcategory_id"/>
                 <field name="owner_user_id"/>
                 <filter string="My Equipment" name="my" domain="[('owner_user_id', '=', uid)]"/>
                 <filter string="Assigned" name="assigned" domain="[('owner_user_id', '!=', False)]"/>
                 <filter string="Unassigned" name="available" domain="[('owner_user_id', '=', False)]"/>
                 <separator/>
-                <filter string="Under Maintenance" name="under_maintenance" domain="[('maintenance_open_count', '&gt;', 0)]"/>
+                <filter string="Under Maintenance" 
+                        name="under_maintenance" 
+                        domain="[('maintenance_ids.stage_id.done', '=', False)]"/>
                 <separator/>
-                <filter string="Unread Messages" name="message_needaction" domain="[('message_needaction','=',True)]" groups="mail.group_mail_notification_type_inbox"/>
+                <filter string="Unread Messages" 
+                        name="message_needaction" 
+                        domain="[('message_needaction','=',True)]"/>
                 <separator/>
                 <filter invisible="1" string="Late Activities" name="activities_overdue"
                     domain="[('my_activity_date_deadline', '&lt;', context_today().strftime('%Y-%m-%d'))]"

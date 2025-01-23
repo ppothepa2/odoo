@@ -25,4 +25,46 @@
     <record id="base.group_system" model="res.groups">
         <field name="implied_ids" eval="[(4, ref('group_maintenance_team')), (4, ref('group_accounting_team'))]"/>
     </record>
+
+    <!-- Category Access Rights -->
+    <record id="access_maintenance_equipment_category_user" model="ir.model.access">
+        <field name="name">maintenance.equipment.category user</field>
+        <field name="model_id" ref="model_maintenance_equipment_category"/>
+        <field name="group_id" ref="group_equipment_manager"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
+
+    <record id="access_maintenance_equipment_category_team" model="ir.model.access">
+        <field name="name">maintenance.equipment.category team</field>
+        <field name="model_id" ref="model_maintenance_equipment_category"/>
+        <field name="group_id" ref="group_maintenance_team"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <!-- Subcategory Access Rights -->
+    <record id="access_maintenance_equipment_subcategory_user" model="ir.model.access">
+        <field name="name">maintenance.equipment.subcategory user</field>
+        <field name="model_id" ref="model_maintenance_equipment_subcategory"/>
+        <field name="group_id" ref="group_equipment_manager"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
+
+    <record id="access_maintenance_equipment_subcategory_team" model="ir.model.access">
+        <field name="name">maintenance.equipment.subcategory team</field>
+        <field name="model_id" ref="model_maintenance_equipment_subcategory"/>
+        <field name="group_id" ref="group_maintenance_team"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
 </odoo> 

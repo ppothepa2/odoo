@@ -6,13 +6,13 @@ from dateutil.relativedelta import relativedelta
 
 class MaintenanceRequisition(models.Model):
     _name = 'maintenance.requisition'
-    _description = 'Equipment Requisition'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread.cc', 'mail.activity.mixin']
+    _description = 'Maintenance Requisition'
     _order = 'is_summary desc, card_color_order desc, requisition_number desc'
     _rec_name = 'requisition_number'
 
     requisition_number = fields.Char('Requisition Number', readonly=True, copy=False, tracking=True)
-    name = fields.Char('Equipment Name', required=True, tracking=True)
+    name = fields.Char('Name', required=True, tracking=True)
     description = fields.Text('Description', tracking=True)
     quantity = fields.Integer('Quantity', default=1, tracking=True)
     expected_cost = fields.Float('Expected Cost', tracking=True)
@@ -57,11 +57,12 @@ class MaintenanceRequisition(models.Model):
     ], default='draft', string='Status', tracking=True)
 
     # Product Information fields
-    vendor = fields.Char('Vendor', tracking=True)
+    vendor = fields.Many2one('res.partner', string='Vendor', tracking=True)
     vendor_reference = fields.Char('Vendor Reference', tracking=True)
     model = fields.Char('Model', tracking=True)
+    serial_number = fields.Char('Serial Number', tracking=True)
     cost = fields.Float('Cost', tracking=True)
-    warranty_expiration_date = fields.Date('Warranty Expiration Date', tracking=True)
+    warranty_expiration_date = fields.Date('Warranty Expiration', tracking=True)
 
     is_temporary = fields.Boolean(
         string='Is Temporary',
@@ -120,11 +121,7 @@ class MaintenanceRequisition(models.Model):
         store=False
     )
 
-    purchase_cost = fields.Float(
-        'Purchase Cost', 
-        tracking=True,
-        copy=False
-    )
+    purchase_cost = fields.Float('Purchase Cost', tracking=True)
     
     stats_purchase_cost = fields.Float(
         string='Statistics Purchase Cost',
@@ -133,18 +130,11 @@ class MaintenanceRequisition(models.Model):
     )
 
     # Add these new fields
-    category_id = fields.Many2one(
-        'maintenance.equipment.category', 
-        string='Equipment Category',
-        tracking=True
-    )
-    
-    subcategory = fields.Selection([
-        ('forklift', 'Forklift'),
-        ('crane', 'Crane'),
-        ('conveyor', 'Conveyor'),
-        # Add more subcategories as needed
-    ], string='Subcategory', tracking=True)
+    category_id = fields.Many2one('maintenance.equipment.category', string='Category', tracking=True)
+    subcategory_id = fields.Many2one('maintenance.equipment.subcategory', string='Subcategory', tracking=True)
+    maintenance_team_id = fields.Many2one('maintenance.team', string='Maintenance Team', tracking=True)
+    requester_id = fields.Many2one('res.users', string='Requested By', tracking=True)
+    technician_id = fields.Many2one('res.users', string='Technician', tracking=True)
 
     @api.depends('requisition_number')
     def _compute_is_temporary(self):
@@ -271,7 +261,7 @@ class MaintenanceRequisition(models.Model):
                     <li>Requester: {self.requester_name}</li>
                     <li>Department: {self.department}</li>
                     <li>Status: {dict(self._fields['state'].selection).get(self.state)}</li>
-                    <li>Vendor: {self.vendor or ''}</li>
+                    <li>Vendor: {self.vendor.name or ''}</li>
                     <li>Model: {self.model or ''}</li>
                     <li>Cost: {self.cost or 0.0}</li>
                     <li>Warranty Expiration: {self.warranty_expiration_date or ''}</li>
@@ -305,34 +295,41 @@ class MaintenanceRequisition(models.Model):
                 }
             ])
 
-    @api.depends('name', 'request_date')
+    @api.depends('is_summary')
     def _compute_stats(self):
-        today = fields.Date.today()
         for record in self:
-            if not record.is_summary:
+            if record.is_summary:
+                domain = []
+                if record.name == 'This Year':
+                    domain = [
+                        ('create_date', '>=', fields.Date.today().replace(month=1, day=1)),
+                        ('is_summary', '=', False)
+                    ]
+                elif record.name == 'This Quarter':
+                    today = fields.Date.today()
+                    quarter_start = today.replace(month=((today.month-1)//3)*3+1, day=1)
+                    domain = [
+                        ('create_date', '>=', quarter_start),
+                        ('is_summary', '=', False)
+                    ]
+                
+                requisitions = self.search(domain)
+                record.stats_count = len(requisitions)
+                record.stats_cost = sum(requisitions.mapped('expected_cost'))
+                record.stats_purchase_cost = sum(requisitions.mapped('purchase_cost'))
+            else:
                 record.stats_count = 0
                 record.stats_cost = 0
                 record.stats_purchase_cost = 0
-                continue
 
-            if 'Quarter' in record.name:
-                # Quarterly stats
-                quarter_start = today + relativedelta(months=-((today.month - 1) % 3), day=1)
-                domain = [
-                    ('request_date', '>=', quarter_start),
-                    ('request_date', '<=', today),
-                    ('is_summary', '=', False)
-                ]
-            else:
-                # Yearly stats
-                year_start = today.replace(month=1, day=1)
-                domain = [
-                    ('request_date', '>=', year_start),
-                    ('request_date', '<=', today),
-                    ('is_summary', '=', False)
-                ]
-
-            records = self.search(domain)
-            record.stats_count = len(records)
-            record.stats_cost = sum(records.mapped('expected_cost'))
-            record.stats_purchase_cost = sum(r.purchase_cost for r in records if r.purchase_cost)
+    @api.onchange('category_id')
+    def _onchange_category_id(self):
+        """Clear and filter subcategory based on selected category"""
+        self.subcategory_id = False  # Clear the subcategory when category changes
+        if not self.category_id:
+            return {'domain': {'subcategory_id': []}}
+        return {
+            'domain': {
+                'subcategory_id': [('category_id', '=', self.category_id.id)]
+            }
+        }

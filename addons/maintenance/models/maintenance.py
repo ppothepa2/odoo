@@ -52,6 +52,7 @@ class MaintenanceEquipmentCategory(models.Model):
     alias_id = fields.Many2one(help="Email alias for this equipment category. New emails will automatically "
         "create a new equipment under this category.")
     fold = fields.Boolean(string='Folded in Maintenance Pipe', compute='_compute_fold', store=True)
+    subcategories = fields.One2many('maintenance.equipment.subcategory', 'category_id', string='Subcategories')
 
     def _compute_equipment_count(self):
         equipment_data = self.env['maintenance.equipment']._read_group([('category_id', 'in', self.ids)], ['category_id'], ['__count'])
@@ -79,6 +80,15 @@ class MaintenanceEquipmentCategory(models.Model):
             values['alias_defaults'] = defaults = ast.literal_eval(self.alias_defaults or "{}")
             defaults['category_id'] = self.id
         return values
+
+
+class MaintenanceEquipmentSubcategory(models.Model):
+    _name = 'maintenance.equipment.subcategory'
+    _description = 'Maintenance Equipment Subcategory'
+    _order = 'name'
+
+    name = fields.Char('Subcategory Name', required=True)
+    category_id = fields.Many2one('maintenance.equipment.category', string='Category', required=True)
 
 
 class MaintenanceMixin(models.AbstractModel):
@@ -123,57 +133,203 @@ class MaintenanceMixin(models.AbstractModel):
 
 class MaintenanceEquipment(models.Model):
     _name = 'maintenance.equipment'
-    _inherit = ['mail.thread', 'mail.activity.mixin', 'maintenance.mixin']
+    _inherit = ['mail.thread.cc', 'mail.activity.mixin']
     _description = 'Maintenance Equipment'
     _check_company_auto = True
 
-    requisition_id = fields.Many2one(
-        'maintenance.requisition',
-        string='Requisition Number',
-        domain="[('state', '=', 'done')]",
-        tracking=True
-    )
+    SUBCATEGORY_SELECTION = [
+        ('mechanical', 'Mechanical'),
+        ('electrical', 'Electrical'),
+        ('electronic', 'Electronic'),
+        ('hydraulic', 'Hydraulic'),
+        ('pneumatic', 'Pneumatic'),
+        ('it_equipment', 'IT Equipment'),
+        ('office_equipment', 'Office Equipment'),
+        ('other', 'Other')
+    ]
+
+    name = fields.Char('Equipment Name', required=True, tracking=True)
+    active = fields.Boolean(default=True)
+    category_id = fields.Many2one('maintenance.equipment.category', string='Equipment Category', required=True, tracking=True)
+    subcategory_id = fields.Many2one('maintenance.equipment.subcategory', string='Subcategory', required=True, tracking=True)
+    owner_user_id = fields.Many2one('res.users', string='Owner', tracking=True)
+    technician_user_id = fields.Many2one('res.users', string='Technician', tracking=True)
+    maintenance_team_id = fields.Many2one('maintenance.team', string='Maintenance Team', check_company=True, tracking=True)
+    partner_id = fields.Many2one('res.partner', string='Vendor', tracking=True)  # Main vendor field
+    partner_ref = fields.Char('Vendor Reference', copy=False, tracking=True)
+    location = fields.Char('Location')
+    model = fields.Char('Model', tracking=True)
+    serial_no = fields.Char('Serial Number', copy=False, tracking=True)
+    warranty_date = fields.Date('Warranty Expiration', tracking=True)
+    cost = fields.Float('Cost', tracking=True)
+    note = fields.Html('Note')
+    company_id = fields.Many2one('res.company', string='Company', required=True, default=lambda self: self.env.company)
+    
+    # Requisition related fields
+    requisition_id = fields.Many2one('maintenance.requisition', string='Requisition Number', tracking=True)
+    is_manual_override = fields.Boolean('Manual Override', help="Check this to manually edit auto-populated fields")
+    
+    # MTBF related fields
+    expected_mtbf = fields.Integer('Expected MTBF', help='Expected Mean Time Between Failure', tracking=True)
+    mtbf = fields.Integer('MTBF', help='Mean Time Between Failure', compute='_compute_mtbf', store=True)
+    
+    # Failure tracking fields
+    estimated_next_failure = fields.Date('Estimated Next Failure', compute='_compute_estimated_next_failure', store=True)
+    latest_failure_date = fields.Date('Latest Failure Date', tracking=True)
+    mttr = fields.Float('MTTR', help='Mean Time To Repair (hours)', compute='_compute_mttr', store=True)
+    maintenance_ids = fields.One2many('maintenance.request', 'equipment_id', string='Maintenance Records')
+    
+    # Maintenance count fields
+    maintenance_open_count = fields.Integer(compute='_compute_maintenance_count', string="Number of open maintenance")
+    maintenance_count = fields.Integer(compute='_compute_maintenance_count', string="Total number of maintenance")
+
+    stage_id = fields.Many2one('maintenance.stage', string='Stage', tracking=True)
+
+    # Add fields to track which fields were auto-filled
+    is_autofilled = fields.Boolean(string='Is Autofilled', default=False)
+    autofilled_fields = fields.Text(string='Autofilled Fields', readonly=True)
+
+    # Add readonly flag fields
+    name_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    category_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    subcategory_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    owner_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    technician_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    team_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    vendor_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    vendor_ref_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    serial_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    model_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    cost_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    warranty_readonly = fields.Boolean(compute='_compute_readonly_fields')
+
+    @api.depends('maintenance_ids.close_date', 'maintenance_ids.stage_id.done')
+    def _compute_mtbf(self):
+        for equipment in self:
+            maintenance_done = equipment.maintenance_ids.filtered(lambda x: x.stage_id.done)
+            if len(maintenance_done) > 1:
+                dates = sorted(maintenance_done.mapped('close_date'))
+                if dates:
+                    delta_days = (dates[-1] - dates[0]).days
+                    equipment.mtbf = delta_days / len(maintenance_done)
+            else:
+                equipment.mtbf = 0
+
+    @api.depends('latest_failure_date', 'expected_mtbf')
+    def _compute_estimated_next_failure(self):
+        for equipment in self:
+            if equipment.latest_failure_date and equipment.expected_mtbf:
+                equipment.estimated_next_failure = fields.Date.add(
+                    equipment.latest_failure_date,
+                    days=equipment.expected_mtbf
+                )
+            else:
+                equipment.estimated_next_failure = False
+
+    @api.depends('maintenance_ids.duration', 'maintenance_ids.stage_id.done')
+    def _compute_mttr(self):
+        for equipment in self:
+            maintenance_done = equipment.maintenance_ids.filtered(lambda x: x.stage_id.done)
+            if maintenance_done:
+                total_duration = sum(maintenance_done.mapped('duration'))
+                equipment.mttr = total_duration / len(maintenance_done)
+            else:
+                equipment.mttr = 0.0
 
     @api.onchange('requisition_id')
     def _onchange_requisition_id(self):
-        if self.requisition_id:
-            # Map only existing fields
-            self.name = self.requisition_id.name
-            self.category_id = self.requisition_id.category_id
-            self.subcategory = self.requisition_id.subcategory
-            self.cost = self.requisition_id.cost
-            self.partner_id = self.requisition_id.vendor
-            self.partner_ref = self.requisition_id.vendor_reference
-            self.model = self.requisition_id.model
+        """Autopopulate fields from requisition when selected"""
+        if self.requisition_id and not self.is_manual_override:
+            requisition = self.requisition_id
+            # Map only requisition fields
+            autofilled = {
+                'name': requisition.name,
+                'category_id': requisition.category_id.id,
+                'subcategory_id': requisition.subcategory_id.id,
+                'cost': requisition.purchase_cost,
+                'partner_id': requisition.vendor.id,  # Updated to use partner_id
+                'partner_ref': requisition.vendor_reference,  # Updated to use partner_ref
+                'serial_no': requisition.serial_number,
+                'model': requisition.model,
+                'warranty_date': requisition.warranty_expiration_date,
+                'owner_user_id': requisition.requester_id.id,
+                'technician_user_id': requisition.technician_id.id,
+                'maintenance_team_id': requisition.maintenance_team_id.id,
+            }
+            self.update(autofilled)
+            self.is_autofilled = True
+            self.autofilled_fields = ','.join(autofilled.keys())
+
+    @api.onchange('category_id')
+    def _onchange_category_id(self):
+        """Clear and filter subcategory based on selected category"""
+        if not self.is_manual_override:
+            self.subcategory_id = False
+        return {
+            'domain': {
+                'subcategory_id': [('category_id', '=', self.category_id.id)] if self.category_id else []
+            }
+        }
+
+    @api.onchange('is_manual_override')
+    def _onchange_manual_override(self):
+        """Reset autofilled status when manual override is enabled"""
+        if self.is_manual_override:
+            self.is_autofilled = False
+            self.autofilled_fields = False
 
     def action_register_equipment(self):
+        """Register equipment and update requisition state"""
         self.ensure_one()
-        if not self.requisition_id:
-            raise UserError(_("Please select a requisition number first."))
+        
+        _logger.info(f"Registering equipment with category: {self.category_id}")
+        
+        # Check required fields
+        required_fields = {
+            'name': 'Equipment Name',
+            'category_id': 'Equipment Category',
+            'owner_user_id': 'Owner',
+            'maintenance_team_id': 'Maintenance Team'
+        }
+        
+        missing_fields = []
+        for field, label in required_fields.items():
+            if not self[field]:
+                missing_fields.append(label)
+                _logger.warning(f"Missing required field: {label}")
+        
+        if missing_fields:
+            raise ValidationError(_(
+                'Please fill in the following required fields before registering:\n- %s',
+                '\n- '.join(missing_fields)
+            ))
+
+        if self.requisition_id:
+            # Ensure category is set one final time
+            if not self.category_id and self.requisition_id.category_id:
+                self.category_id = self.requisition_id.category_id.id
+                
+            self.requisition_id.write({
+                'state': 'registered_with_equipment'
+            })
             
-        # Update equipment state
-        self.state = 'registered'
-        
-        # Update requisition stage to "Registered with Equipment"
-        self.requisition_id.write({
-            'state': 'registered_with_equipment'
-        })
-        
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Success'),
-                'message': _('Equipment has been successfully registered.'),
-                'type': 'success',
+                'message': _('Equipment registered successfully'),
                 'sticky': False,
+                'type': 'success',
             }
         }
 
     def _track_subtype(self, init_values):
+        """Override to handle message subtypes for equipment"""
         self.ensure_one()
         if 'owner_user_id' in init_values and self.owner_user_id:
-            return self.env.ref('maintenance.mt_mat_assign')
+            # Changed to use a more generic message subtype since mt_mat_assign doesn't exist
+            return self.env.ref('mail.mt_note')
         return super(MaintenanceEquipment, self)._track_subtype(init_values)
 
     @api.depends('serial_no')
@@ -192,20 +348,7 @@ class MaintenanceEquipment(models.Model):
             query = self._search([('name', '=', name)] + domain, limit=limit, order=order)
         return query or super()._name_search(name, domain, operator, limit, order)
 
-    name = fields.Char('Equipment Name', required=True, translate=True)
-    active = fields.Boolean(default=True)
-    owner_user_id = fields.Many2one('res.users', string='Owner', tracking=True)
-    category_id = fields.Many2one('maintenance.equipment.category', string='Equipment Category',
-                                  tracking=True, group_expand='_read_group_category_ids')
-    partner_id = fields.Many2one('res.partner', string='Vendor', check_company=True)
-    partner_ref = fields.Char('Vendor Reference')
-    location = fields.Char('Location')
-    model = fields.Char('Model')
-    serial_no = fields.Char('Serial Number', copy=False)
     assign_date = fields.Date('Assigned Date', tracking=True)
-    cost = fields.Float('Cost')
-    note = fields.Html('Note')
-    warranty_date = fields.Date('Warranty Expiration Date')
     color = fields.Integer('Color Index')
     scrap_date = fields.Date('Scrap Date')
     maintenance_ids = fields.One2many('maintenance.request', 'equipment_id')
@@ -217,12 +360,6 @@ class MaintenanceEquipment(models.Model):
         domain=[('maintenance_type', '=', 'preventive')],
         string='Maintenance Schedule'
     )
-    subcategory = fields.Selection([
-        ('forklift', 'Forklift'),
-        ('crane', 'Crane'),
-        ('conveyor', 'Conveyor'),
-        # Add more subcategories as needed
-    ], string='Subcategory')
 
     @api.onchange('category_id')
     def _onchange_category_id(self):
@@ -234,11 +371,29 @@ class MaintenanceEquipment(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        equipments = super().create(vals_list)
-        for equipment in equipments:
-            if equipment.owner_user_id:
-                equipment.message_subscribe(partner_ids=[equipment.owner_user_id.partner_id.id])
-        return equipments
+        """Override create to ensure required fields are set"""
+        for vals in vals_list:
+            if 'requisition_id' in vals and not vals.get('is_manual_override'):
+                requisition = self.env['maintenance.requisition'].browse(vals['requisition_id'])
+                if requisition:
+                    autofilled = {
+                        'name': requisition.name,
+                        'category_id': requisition.category_id.id,
+                        'subcategory_id': requisition.subcategory_id.id,
+                        'cost': requisition.purchase_cost,
+                        'partner_id': requisition.vendor.id,  # Updated to use partner_id
+                        'partner_ref': requisition.vendor_reference,  # Updated to use partner_ref
+                        'serial_no': requisition.serial_number,
+                        'model': requisition.model,
+                        'warranty_date': requisition.warranty_expiration_date,
+                        'owner_user_id': requisition.requester_id.id,
+                        'technician_user_id': requisition.technician_id.id,
+                        'maintenance_team_id': requisition.maintenance_team_id.id,
+                    }
+                    vals.update(autofilled)
+                    vals['is_autofilled'] = True
+                    vals['autofilled_fields'] = ','.join(autofilled.keys())
+        return super().create(vals_list)
 
     def write(self, vals):
         if vals.get('owner_user_id'):
@@ -252,6 +407,52 @@ class MaintenanceEquipment(models.Model):
         """
         category_ids = categories._search([], order=order, access_rights_uid=SUPERUSER_ID)
         return categories.browse(category_ids)
+
+    @api.depends('maintenance_ids', 'maintenance_ids.stage_id.done')
+    def _compute_maintenance_count(self):
+        """Compute the number of maintenance requests"""
+        for equipment in self:
+            maintenance_data = self.env['maintenance.request'].read_group([
+                ('equipment_id', '=', equipment.id)
+            ], ['equipment_id'], ['equipment_id'])
+            equipment.maintenance_count = maintenance_data[0]['equipment_id_count'] if maintenance_data else 0
+
+    def _compute_maintenance_count(self):
+        """Compute maintenance counts"""
+        for equipment in self:
+            maintenance_data = self.env['maintenance.request'].read_group([
+                ('equipment_id', '=', equipment.id)
+            ], ['equipment_id', 'stage_id'], ['equipment_id', 'stage_id'])
+            
+            # Initialize counters
+            equipment.maintenance_count = 0
+            equipment.maintenance_open_count = 0
+            
+            for data in maintenance_data:
+                equipment.maintenance_count += data['__count']
+                # Check if stage is not done
+                stage = self.env['maintenance.stage'].browse(data['stage_id'][0])
+                if not stage.done:
+                    equipment.maintenance_open_count += data['__count']
+
+    @api.depends('requisition_id', 'is_manual_override', 'is_autofilled')
+    def _compute_readonly_fields(self):
+        """Compute whether fields should be readonly based on requisition and override status"""
+        for equipment in self:
+            # Fields should be readonly if there's a requisition and no manual override
+            is_readonly = equipment.requisition_id and not equipment.is_manual_override and equipment.is_autofilled
+            equipment.name_readonly = is_readonly
+            equipment.category_readonly = is_readonly
+            equipment.subcategory_readonly = is_readonly
+            equipment.owner_readonly = is_readonly
+            equipment.technician_readonly = is_readonly
+            equipment.team_readonly = is_readonly
+            equipment.vendor_readonly = is_readonly
+            equipment.vendor_ref_readonly = is_readonly
+            equipment.serial_readonly = is_readonly
+            equipment.model_readonly = is_readonly
+            equipment.cost_readonly = is_readonly
+            equipment.warranty_readonly = is_readonly
 
 class MaintenanceChecklistTemplate(models.Model):
     _name = 'maintenance.checklist.template'
@@ -310,8 +511,7 @@ class MaintenanceRequest(models.Model):
                                help="Date requested for the maintenance to happen")
     owner_user_id = fields.Many2one('res.users', string='Created by User', default=lambda s: s.env.uid)
     category_id = fields.Many2one('maintenance.equipment.category', related='equipment_id.category_id', string='Category', store=True, readonly=True)
-    equipment_id = fields.Many2one('maintenance.equipment', string='Equipment',
-                                   ondelete='restrict', index=True, check_company=True)
+    equipment_id = fields.Many2one('maintenance.equipment', string='Equipment', tracking=True, check_company=True)
     user_id = fields.Many2one('res.users', string='Technician', compute='_compute_user_id', store=True, readonly=False, tracking=True)
     stage_id = fields.Many2one('maintenance.stage', string='Stage', ondelete='restrict', tracking=True,
                                group_expand='_read_group_stage_ids', default=_default_stage, copy=False)
@@ -354,8 +554,6 @@ class MaintenanceRequest(models.Model):
     )
     checklist_item_ids = fields.One2many('maintenance.checklist.item', 'request_id', string='Checklist Items')
 
-    subcategory = fields.Selection(related='equipment_id.subcategory', string='Subcategory', store=True, readonly=True)
-
     # Add these new fields
     version = fields.Selection([
         ('main', 'Main'),
@@ -366,6 +564,11 @@ class MaintenanceRequest(models.Model):
     child_ids = fields.One2many('maintenance.request', 'parent_id', 
                                string='Child Requests', copy=False)
     child_sequence = fields.Integer(string='Child Sequence', copy=False)
+
+    subcategory_id = fields.Many2one('maintenance.equipment.subcategory', 
+                                    string='Subcategory',
+                                    related='equipment_id.subcategory_id',
+                                    store=True)
 
     def archive_equipment_request(self):
         self.write({'archive': True, 'recurring_maintenance': False})
@@ -497,14 +700,14 @@ class MaintenanceRequest(models.Model):
     def _onchange_equipment_id(self):
         if self.equipment_id:
             category = self.equipment_id.category_id
-            subcategory = self.equipment_id.subcategory
+            subcategory = self.equipment_id.subcategory_id
             
             _logger.info(f"Selected Equipment: {self.equipment_id.name}")
             _logger.info(f"Category: {category.name}, Subcategory: {subcategory}")
             
             # Clear existing checklist items
             self.checklist_item_ids = [(5, 0, 0)]
-            
+
             checklist_key = (category.name.lower(), subcategory.lower())
             if checklist_key in self.get_checklist_items():
                 checklist_vals = []
@@ -718,6 +921,11 @@ class MaintenanceRequest(models.Model):
                     raise UserError(_("Cannot move maintenance request backwards in stages."))
 
         return super().write(vals)
+
+    @api.depends('equipment_id', 'equipment_id.subcategory_id')
+    def _compute_subcategory(self):
+        for request in self:
+            request.subcategory_id = request.equipment_id.subcategory_id if request.equipment_id else False
 
 class MaintenanceChecklistItem(models.Model):
     _name = 'maintenance.checklist.item'
