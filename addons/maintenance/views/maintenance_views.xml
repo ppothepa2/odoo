@@ -507,8 +507,11 @@
                     
                     <div class="oe_title">
                         <h1>
-                            <field name="name" placeholder="Equipment Name" readonly="name_readonly"/>
+                            <field name="registration_number" readonly="1" class="text-primary"/>
                         </h1>
+                        <h2>
+                            <field name="name" placeholder="Equipment Name"/>
+                        </h2>
                     </div>
                     <group>
                         <group>
@@ -1318,4 +1321,79 @@
         parent="menu_m_request"
         action="hr_equipment_request_action_schedule"
         sequence="3"/>
+
+    <!-- Kanban view for registered equipment -->
+    <record id="hr_equipment_registered_kanban_view" model="ir.ui.view">
+        <field name="name">maintenance.equipment.registered.kanban</field>
+        <field name="model">maintenance.equipment</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="category_id" class="o_kanban_small_column" records_draggable="0">
+                <field name="category_id"/>
+                <field name="name"/>
+                <field name="registration_number"/>
+                <field name="partner_ref"/>
+                <field name="partner_id"/>
+                <field name="is_registered"/>
+                <field name="registration_date"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div t-attf-class="oe_kanban_card oe_kanban_global_click mb-3" style="max-width: 300px;">
+                            <div class="oe_kanban_content p-2">
+                                <div class="o_kanban_record_top mb-2">
+                                    <strong class="h6">
+                                        <field name="name"/>
+                                    </strong>
+                                </div>
+                                <div class="o_kanban_record_body small">
+                                    <table class="w-100">
+                                        <tr class="mb-2">
+                                            <td style="width: 40%;"><strong>Registration:</strong></td>
+                                            <td><field name="registration_number"/></td>
+                                        </tr>
+                                        <tr class="mb-2">
+                                            <td><strong>PO Ref:</strong></td>
+                                            <td><field name="partner_ref"/></td>
+                                        </tr>
+                                        <tr class="mb-2">
+                                            <td><strong>Vendor:</strong></td>
+                                            <td><field name="partner_id"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Reg. Date:</strong></td>
+                                            <td><field name="registration_date" widget="date"/></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Action for registered equipment -->
+    <record id="action_registered_equipment_kanban" model="ir.actions.act_window">
+        <field name="name">Registered Equipment</field>
+        <field name="res_model">maintenance.equipment</field>
+        <field name="view_mode">kanban,form</field>
+        <field name="domain">[('is_registered', '=', True)]</field>
+        <field name="context">{'default_is_registered': True}</field>
+        <field name="view_id" ref="hr_equipment_registered_kanban_view"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No registered equipment found
+            </p>
+            <p>
+                Register your equipment to see them here.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu item for registered equipment -->
+    <menuitem id="menu_registered_equipment"
+              name="Registered Equipment"
+              parent="menu_equipment_form"
+              action="action_registered_equipment_kanban"
+              sequence="2"/>
 </odoo>

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_equipment_registration_form" model="ir.ui.view">
+        <field name="name">equipment.registration.form</field>
+        <field name="model">equipment.registration</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <!-- Add buttons if needed -->
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="registration_number" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="requisition_id"/>
+                            <field name="progress"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Equipment" name="equipment">
+                            <field name="equipment_ids">
+                                <tree>
+                                    <field name="registration_number"/>
+                                    <field name="is_registered"/>
+                                    <button name="action_open_equipment" type="object" string="Open" class="btn btn-primary"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_equipment_registration_tree" model="ir.ui.view">
+        <field name="name">equipment.registration.tree</field>
+        <field name="model">equipment.registration</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="registration_number"/>
+                <field name="requisition_id"/>
+                <field name="progress"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="action_equipment_registration" model="ir.actions.act_window">
+        <field name="name">Equipment Registration</field>
+        <field name="res_model">equipment.registration</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem id="menu_equipment_registration"
+              name="Equipment Registration"
+              parent="menu_equipment_form"
+              action="action_equipment_registration"
+              sequence="1"/>
+</odoo> 

@@ -203,6 +203,15 @@ class MaintenanceEquipment(models.Model):
     cost_readonly = fields.Boolean(compute='_compute_readonly_fields')
     warranty_readonly = fields.Boolean(compute='_compute_readonly_fields')
 
+    # Add new fields
+    registration_number = fields.Char('Registration Number', readonly=True, copy=False, tracking=True)
+    registration_sequence = fields.Integer('Registration Sequence', readonly=True, copy=False)
+    is_registered = fields.Boolean('Is Registered', default=False, tracking=True)
+    registration_line_id = fields.One2many('equipment.registration.line', 'equipment_id', string='Registration Line')
+
+    # Add registration_date field
+    registration_date = fields.Date('Registration Date', readonly=True, copy=False, tracking=True)
+
     @api.depends('maintenance_ids.close_date', 'maintenance_ids.stage_id.done')
     def _compute_mtbf(self):
         for equipment in self:
@@ -279,50 +288,27 @@ class MaintenanceEquipment(models.Model):
             self.autofilled_fields = False
 
     def action_register_equipment(self):
-        """Register equipment and update requisition state"""
-        self.ensure_one()
-        
-        _logger.info(f"Registering equipment with category: {self.category_id}")
-        
-        # Check required fields
-        required_fields = {
-            'name': 'Equipment Name',
-            'category_id': 'Equipment Category',
-            'owner_user_id': 'Owner',
-            'maintenance_team_id': 'Maintenance Team'
-        }
-        
-        missing_fields = []
-        for field, label in required_fields.items():
-            if not self[field]:
-                missing_fields.append(label)
-                _logger.warning(f"Missing required field: {label}")
-        
-        if missing_fields:
-            raise ValidationError(_(
-                'Please fill in the following required fields before registering:\n- %s',
-                '\n- '.join(missing_fields)
-            ))
-
-        if self.requisition_id:
-            # Ensure category is set one final time
-            if not self.category_id and self.requisition_id.category_id:
-                self.category_id = self.requisition_id.category_id.id
+        """Register the equipment"""
+        for equipment in self:
+            if equipment.registration_number:
+                equipment.write({
+                    'is_registered': True,
+                    'registration_number': equipment.registration_number.replace('TEMP/', '')
+                })
                 
-            self.requisition_id.write({
-                'state': 'registered_with_equipment'
-            })
-            
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Success'),
-                'message': _('Equipment registered successfully'),
-                'sticky': False,
-                'type': 'success',
-            }
-        }
+                # Get the registration record and check if all equipment is registered
+                registration = self.env['equipment.registration'].browse(
+                    equipment.registration_line_id.registration_id.id
+                )
+                if registration:
+                    registered_count = len(registration.equipment_ids.filtered('is_registered'))
+                    total_count = len(registration.equipment_ids)
+                    
+                    if registered_count == total_count and registration.registration_number.startswith('TEMP/'):
+                        registration.write({
+                            'registration_number': registration.registration_number.replace('TEMP/', '')
+                        })
+        return True
 
     def _track_subtype(self, init_values):
         """Override to handle message subtypes for equipment"""
@@ -453,6 +439,31 @@ class MaintenanceEquipment(models.Model):
             equipment.model_readonly = is_readonly
             equipment.cost_readonly = is_readonly
             equipment.warranty_readonly = is_readonly
+
+    @api.model
+    def create_from_requisition(self, requisition_id, sequence):
+        """Create equipment record from requisition with sequence number"""
+        requisition = self.env['maintenance.requisition'].browse(requisition_id)
+        
+        registration_number = f'TEMP/REG/{requisition.requisition_number}/{sequence}'
+        
+        vals = {
+            'name': requisition.name,
+            'category_id': requisition.category_id.id,
+            'subcategory_id': requisition.subcategory_id.id,
+            'cost': requisition.purchase_cost,
+            'partner_id': requisition.vendor.id,
+            'partner_ref': requisition.vendor_reference,
+            'serial_no': requisition.serial_number,
+            'model': requisition.model,
+            'warranty_date': requisition.warranty_expiration_date,
+            'requisition_id': requisition.id,
+            'registration_number': registration_number,
+            'registration_sequence': sequence,
+            'is_registered': False
+        }
+        return self.create(vals)
+
 
 class MaintenanceChecklistTemplate(models.Model):
     _name = 'maintenance.checklist.template'
