@@ -7,7 +7,8 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,submitted,accounting_review,po_pending,inspection,done,registered_with_equipment"/>
+                    <field name="state" widget="statusbar" 
+                           statusbar_visible="draft,submitted,accounting_review,po_pending,inspection,done,partially_registered_with_equipment,fully_registered_with_equipment"/>
                 </header>
                 <sheet>
                     <div class="oe_title">

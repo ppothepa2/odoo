@@ -52,7 +52,8 @@ class MaintenanceRequisition(models.Model):
         ('po_pending', 'PO Pending'),
         ('inspection', 'Inspection'),
         ('done', 'Done'),
-        ('registered_with_equipment', 'Registered with Equipment'),
+        ('partially_registered_with_equipment', 'Partially Registered with Equipment'),
+        ('fully_registered_with_equipment', 'Fully Registered with Equipment'),
         ('rejected', 'Rejected')
     ], default='draft', string='Status', tracking=True)
 

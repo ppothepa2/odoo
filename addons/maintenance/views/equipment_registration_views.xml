@@ -5,6 +5,10 @@
         <field name="model">equipment.registration</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <field name="state" widget="statusbar" 
+                           statusbar_visible="draft,partially_registered,fully_registered"/>
+                </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <!-- Add buttons if needed -->
@@ -26,7 +30,10 @@
                                 <tree>
                                     <field name="registration_number"/>
                                     <field name="is_registered"/>
-                                    <button name="action_open_equipment" type="object" string="Open" class="btn btn-primary"/>
+                                    <button name="action_open_equipment" 
+                                            type="object" 
+                                            string="Open" 
+                                            class="btn btn-primary"/>
                                 </tree>
                             </field>
                         </page>
@@ -44,6 +51,7 @@
                 <field name="registration_number"/>
                 <field name="requisition_id"/>
                 <field name="progress"/>
+                <field name="state"/>
             </tree>
         </field>
     </record>

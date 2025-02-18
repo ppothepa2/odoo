@@ -1,4 +1,5 @@
 from odoo import api, fields, models, _
+from odoo.exceptions import UserError
 
 class EquipmentRegistration(models.Model):
     _name = 'equipment.registration'
@@ -11,15 +12,48 @@ class EquipmentRegistration(models.Model):
     equipment_ids = fields.One2many('equipment.registration.line', 'registration_id', string='Equipment')
     progress = fields.Char(string='Progress (%)', compute='_compute_progress', store=True)
     all_registered = fields.Boolean(compute='_compute_progress', store=True)
+    state = fields.Selection([
+        ('draft', 'Draft'),
+        ('partially_registered', 'Partially Registered'),
+        ('fully_registered', 'Fully Registered')
+    ], string='Status', default='draft', tracking=True, copy=False, required=True)
     
+    @api.onchange('requisition_id')
+    def _onchange_requisition_id(self):
+        """Update state when requisition is selected"""
+        if self.requisition_id:
+            if self.requisition_id.state != 'done':
+                raise UserError(_('Only requisitions in Done state can be selected.'))
+            self.state = 'draft'
+            # Update requisition state
+            self.requisition_id.write({
+                'state': 'partially_registered_with_equipment'
+            })
+
     @api.depends('equipment_ids.is_registered')
     def _compute_progress(self):
+        """Extend existing compute method to update states"""
         for rec in self:
             registered = len(rec.equipment_ids.filtered('is_registered'))
             total = len(rec.equipment_ids)
             percentage = (registered / total * 100) if total > 0 else 0
             rec.progress = f"{percentage:.0f}%"
             rec.all_registered = total > 0 and registered == total
+
+            # Update states based on progress
+            if total > 0:
+                if registered == 0:
+                    rec.state = 'draft'
+                elif registered == total:
+                    rec.state = 'fully_registered'
+                    # Update requisition state when fully registered
+                    if rec.requisition_id:
+                        rec.requisition_id.write({
+                            'state': 'fully_registered_with_equipment'
+                        })
+                else:
+                    rec.state = 'partially_registered'
+
             # If all registered, update main registration number
             if rec.all_registered:
                 rec.registration_number = f'REG/{rec.requisition_id.requisition_number}'
