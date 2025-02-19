@@ -44,15 +44,25 @@ class EquipmentRegistration(models.Model):
             if total > 0:
                 if registered == 0:
                     rec.state = 'draft'
+                    # Update requisition state when no equipment is registered
+                    if rec.requisition_id:
+                        rec.requisition_id.write({
+                            'state': 'partially_registered_with_equipment'
+                        })
                 elif registered == total:
                     rec.state = 'fully_registered'
-                    # Update requisition state when fully registered
+                    # Update requisition state when all equipment is registered
                     if rec.requisition_id:
                         rec.requisition_id.write({
                             'state': 'fully_registered_with_equipment'
                         })
                 else:
                     rec.state = 'partially_registered'
+                    # Update requisition state when some equipment is registered
+                    if rec.requisition_id:
+                        rec.requisition_id.write({
+                            'state': 'partially_registered_with_equipment'
+                        })
 
             # If all registered, update main registration number
             if rec.all_registered:
@@ -98,6 +108,8 @@ class EquipmentRegistrationLine(models.Model):
     _description = 'Equipment Registration Line'
 
     registration_id = fields.Many2one('equipment.registration', string='Registration')
+    requisition_id = fields.Many2one(related='registration_id.requisition_id', 
+        string='Requisition', store=True, readonly=True)
     equipment_id = fields.Many2one('maintenance.equipment', string='Equipment')
     registration_number = fields.Char(related='equipment_id.registration_number', readonly=True, store=True)
     is_registered = fields.Boolean(related='equipment_id.is_registered', readonly=True, store=True)

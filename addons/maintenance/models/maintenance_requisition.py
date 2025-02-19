@@ -137,6 +137,15 @@ class MaintenanceRequisition(models.Model):
     requester_id = fields.Many2one('res.users', string='Requested By', tracking=True)
     technician_id = fields.Many2one('res.users', string='Technician', tracking=True)
 
+    # Add equipment registration related fields
+    equipment_registration_ids = fields.One2many('equipment.registration.line', 'requisition_id', 
+        string='Equipment Registrations', readonly=True)
+    equipment_registration_count = fields.Integer(
+        string='Registered Equipment Count',
+        compute='_compute_equipment_registration_count',
+        store=True
+    )
+
     @api.depends('requisition_number')
     def _compute_is_temporary(self):
         for record in self:
@@ -334,3 +343,8 @@ class MaintenanceRequisition(models.Model):
                 'subcategory_id': [('category_id', '=', self.category_id.id)]
             }
         }
+
+    @api.depends('equipment_registration_ids.is_registered')
+    def _compute_equipment_registration_count(self):
+        for record in self:
+            record.equipment_registration_count = len(record.equipment_registration_ids.filtered('is_registered'))
