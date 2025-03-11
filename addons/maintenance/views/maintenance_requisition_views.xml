@@ -39,8 +39,8 @@
                                                readonly="state != 'draft'"/>
                                         <field name="subcategory_id" 
                                                options="{'no_create': True, 'no_open': True}"
-                                               context="{'default_category_id': category_id}"
-                                               readonly="state != 'draft'"/>
+                                               readonly="state != 'draft'"
+                                               domain="[('category_id', '=', category_id)]"/>
                                         <field name="quantity" readonly="state != 'draft'"/>
                                         <field name="expected_cost" readonly="state != 'draft'"/>
                                         <field name="priority" readonly="state != 'draft'"/>

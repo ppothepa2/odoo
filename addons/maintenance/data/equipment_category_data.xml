@@ -1,332 +1,278 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="1">
-        <!-- Lab & Measurement Equipment -->
-        <record id="category_lab_measurement" model="maintenance.equipment.category">
-            <field name="name">Lab &amp; Measurement Equipment</field>
+        <!-- CTU (Freezer) Category -->
+        <record id="category_ctu" model="maintenance.equipment.category">
+            <field name="name">CTU (Freezer)</field>
         </record>
-        <record id="subcategory_balance" model="maintenance.equipment.subcategory">
-            <field name="name">Balance</field>
-            <field name="category_id" ref="category_lab_measurement"/>
+        <record id="subcategory_ctu_020" model="maintenance.equipment.subcategory">
+            <field name="name">020</field>
+            <field name="category_id" ref="category_ctu"/>
         </record>
-        <record id="subcategory_stopwatch" model="maintenance.equipment.subcategory">
-            <field name="name">Stopwatch</field>
-            <field name="category_id" ref="category_lab_measurement"/>
+        <record id="subcategory_ctu_030" model="maintenance.equipment.subcategory">
+            <field name="name">030</field>
+            <field name="category_id" ref="category_ctu"/>
         </record>
-        <record id="subcategory_light_meter" model="maintenance.equipment.subcategory">
-            <field name="name">Light Meter</field>
-            <field name="category_id" ref="category_lab_measurement"/>
+        <record id="subcategory_ctu_040" model="maintenance.equipment.subcategory">
+            <field name="name">040</field>
+            <field name="category_id" ref="category_ctu"/>
         </record>
-        <record id="subcategory_thermometer" model="maintenance.equipment.subcategory">
-            <field name="name">Thermometer</field>
-            <field name="category_id" ref="category_lab_measurement"/>
+        <record id="subcategory_ctu_065" model="maintenance.equipment.subcategory">
+            <field name="name">065</field>
+            <field name="category_id" ref="category_ctu"/>
         </record>
-        <record id="subcategory_hygrometer" model="maintenance.equipment.subcategory">
-            <field name="name">Hygrometer</field>
-            <field name="category_id" ref="category_lab_measurement"/>
+        <record id="subcategory_ctu_ref" model="maintenance.equipment.subcategory">
+            <field name="name">REF</field>
+            <field name="category_id" ref="category_ctu"/>
         </record>
-        <record id="subcategory_multimeter" model="maintenance.equipment.subcategory">
-            <field name="name">Multimeter</field>
-            <field name="category_id" ref="category_lab_measurement"/>
-        </record>
-        <record id="subcategory_tachometer" model="maintenance.equipment.subcategory">
-            <field name="name">Tachometer</field>
-            <field name="category_id" ref="category_lab_measurement"/>
+        <record id="subcategory_ctu_ln2" model="maintenance.equipment.subcategory">
+            <field name="name">LN2</field>
+            <field name="category_id" ref="category_ctu"/>
         </record>
 
-        <!-- Storage & Freezers -->
-        <record id="category_storage_freezers" model="maintenance.equipment.category">
-            <field name="name">Storage &amp; Freezers</field>
-        </record>
-        <record id="subcategory_ln2_freezer" model="maintenance.equipment.subcategory">
-            <field name="name">LN2 Freezer</field>
-            <field name="category_id" ref="category_storage_freezers"/>
-        </record>
-        <record id="subcategory_walk_in_freezer" model="maintenance.equipment.subcategory">
-            <field name="name">Walk-in Freezer</field>
-            <field name="category_id" ref="category_storage_freezers"/>
-        </record>
-        <record id="subcategory_ultra_low_freezer" model="maintenance.equipment.subcategory">
-            <field name="name">Ultra-low Freezer</field>
-            <field name="category_id" ref="category_storage_freezers"/>
-        </record>
-        <record id="subcategory_upright_ultra_low_freezer" model="maintenance.equipment.subcategory">
-            <field name="name">Upright Ultra Low Freezer</field>
-            <field name="category_id" ref="category_storage_freezers"/>
-        </record>
-        <record id="subcategory_chest_freezer" model="maintenance.equipment.subcategory">
-            <field name="name">Chest Freezer</field>
-            <field name="category_id" ref="category_storage_freezers"/>
-        </record>
-        <record id="subcategory_freezer" model="maintenance.equipment.subcategory">
-            <field name="name">Freezer</field>
-            <field name="category_id" ref="category_storage_freezers"/>
+        <!-- GEN (Generator) Category -->
+        <record id="category_gen" model="maintenance.equipment.category">
+            <field name="name">GEN (Generator)</field>
         </record>
 
-        <!-- Safety & Monitoring -->
-        <record id="category_safety_monitoring" model="maintenance.equipment.category">
-            <field name="name">Safety &amp; Monitoring</field>
-        </record>
-        <record id="subcategory_bio_safety_cabinet" model="maintenance.equipment.subcategory">
-            <field name="name">Bio-Safety Cabinet</field>
-            <field name="category_id" ref="category_safety_monitoring"/>
-        </record>
-        <record id="subcategory_security_camera" model="maintenance.equipment.subcategory">
-            <field name="name">Security Camera</field>
-            <field name="category_id" ref="category_safety_monitoring"/>
-        </record>
-        <record id="subcategory_security_system" model="maintenance.equipment.subcategory">
-            <field name="name">Security System</field>
-            <field name="category_id" ref="category_safety_monitoring"/>
-        </record>
-        <record id="subcategory_monitoring_system" model="maintenance.equipment.subcategory">
-            <field name="name">Monitoring System</field>
-            <field name="category_id" ref="category_safety_monitoring"/>
+        <!-- CRT (Cart) Category -->
+        <record id="category_crt" model="maintenance.equipment.category">
+            <field name="name">CRT (Cart)</field>
         </record>
 
-        <!-- Computer & Electronics -->
-        <record id="category_computer_electronics" model="maintenance.equipment.category">
-            <field name="name">Computer &amp; Electronics</field>
+        <!-- HVC (HVAC) Category -->
+        <record id="category_hvc" model="maintenance.equipment.category">
+            <field name="name">HVC (HVAC)</field>
         </record>
-        <record id="subcategory_computer" model="maintenance.equipment.subcategory">
-            <field name="name">Computer</field>
-            <field name="category_id" ref="category_computer_electronics"/>
+        <record id="subcategory_hvc_rft" model="maintenance.equipment.subcategory">
+            <field name="name">RFT (roof top)</field>
+            <field name="category_id" ref="category_hvc"/>
         </record>
-        <record id="subcategory_desktop_computer" model="maintenance.equipment.subcategory">
-            <field name="name">Desktop Computer</field>
-            <field name="category_id" ref="category_computer_electronics"/>
-        </record>
-        <record id="subcategory_laptop" model="maintenance.equipment.subcategory">
-            <field name="name">Laptop</field>
-            <field name="category_id" ref="category_computer_electronics"/>
-        </record>
-        <record id="subcategory_desktop_pc" model="maintenance.equipment.subcategory">
-            <field name="name">Desktop PC</field>
-            <field name="category_id" ref="category_computer_electronics"/>
-        </record>
-        <record id="subcategory_monitor" model="maintenance.equipment.subcategory">
-            <field name="name">20" Monitor</field>
-            <field name="category_id" ref="category_computer_electronics"/>
-        </record>
-        <record id="subcategory_scanner" model="maintenance.equipment.subcategory">
-            <field name="name">Scanner</field>
-            <field name="category_id" ref="category_computer_electronics"/>
-        </record>
-        <record id="subcategory_camera" model="maintenance.equipment.subcategory">
-            <field name="name">Camera</field>
-            <field name="category_id" ref="category_computer_electronics"/>
-        </record>
-        <record id="subcategory_printer" model="maintenance.equipment.subcategory">
-            <field name="name">Printer</field>
-            <field name="category_id" ref="category_computer_electronics"/>
-        </record>
-        <record id="subcategory_color_laser_printer" model="maintenance.equipment.subcategory">
-            <field name="name">Color Laser Printer</field>
-            <field name="category_id" ref="category_computer_electronics"/>
+        <record id="subcategory_hvc_std" model="maintenance.equipment.subcategory">
+            <field name="name">STD (standard)</field>
+            <field name="category_id" ref="category_hvc"/>
         </record>
 
-        <!-- Communication Devices -->
-        <record id="category_communication" model="maintenance.equipment.category">
-            <field name="name">Communication Devices</field>
-        </record>
-        <record id="subcategory_phone" model="maintenance.equipment.subcategory">
-            <field name="name">Phone</field>
-            <field name="category_id" ref="category_communication"/>
-        </record>
-        <record id="subcategory_cell_phone" model="maintenance.equipment.subcategory">
-            <field name="name">Cell Phone</field>
-            <field name="category_id" ref="category_communication"/>
-        </record>
-        <record id="subcategory_phone_system" model="maintenance.equipment.subcategory">
-            <field name="name">Phone System</field>
-            <field name="category_id" ref="category_communication"/>
+        <!-- BSC (Bio Cabinet) Category -->
+        <record id="category_bsc" model="maintenance.equipment.category">
+            <field name="name">BSC (Bio Cabinet)</field>
         </record>
 
-        <!-- Material Handling -->
-        <record id="category_material_handling" model="maintenance.equipment.category">
-            <field name="name">Material Handling</field>
+        <!-- LFT (Fork Lift) Category -->
+        <record id="category_lft" model="maintenance.equipment.category">
+            <field name="name">LFT (Fork Lift)</field>
         </record>
-        <record id="subcategory_forklift" model="maintenance.equipment.subcategory">
-            <field name="name">Forklift</field>
-            <field name="category_id" ref="category_material_handling"/>
+        <record id="subcategory_lft_ret" model="maintenance.equipment.subcategory">
+            <field name="name">RET (reach truck)</field>
+            <field name="category_id" ref="category_lft"/>
         </record>
-        <record id="subcategory_pallet_stacker" model="maintenance.equipment.subcategory">
-            <field name="name">Pallet Stacker</field>
-            <field name="category_id" ref="category_material_handling"/>
+        <record id="subcategory_lft_sit" model="maintenance.equipment.subcategory">
+            <field name="name">SIT (sit down)</field>
+            <field name="category_id" ref="category_lft"/>
         </record>
-        <record id="subcategory_lift" model="maintenance.equipment.subcategory">
-            <field name="name">Lift</field>
-            <field name="category_id" ref="category_material_handling"/>
-        </record>
-        <record id="subcategory_trailer" model="maintenance.equipment.subcategory">
-            <field name="name">Trailer</field>
-            <field name="category_id" ref="category_material_handling"/>
-        </record>
-        <record id="subcategory_fork" model="maintenance.equipment.subcategory">
-            <field name="name">Fork</field>
-            <field name="category_id" ref="category_material_handling"/>
-        </record>
-        <record id="subcategory_hand_sealer" model="maintenance.equipment.subcategory">
-            <field name="name">Hand Sealer</field>
-            <field name="category_id" ref="category_material_handling"/>
-        </record>
-        <record id="subcategory_hand_crimper" model="maintenance.equipment.subcategory">
-            <field name="name">Hand Crimper</field>
-            <field name="category_id" ref="category_material_handling"/>
+        <record id="subcategory_lft_pkr" model="maintenance.equipment.subcategory">
+            <field name="name">PKR (picker)</field>
+            <field name="category_id" ref="category_lft"/>
         </record>
 
-        <!-- Lab Processing Equipment -->
-        <record id="category_lab_processing" model="maintenance.equipment.category">
-            <field name="name">Lab Processing Equipment</field>
-        </record>
-        <record id="subcategory_vacuum_cleaner" model="maintenance.equipment.subcategory">
-            <field name="name">Vacuum Cleaner</field>
-            <field name="category_id" ref="category_lab_processing"/>
-        </record>
-        <record id="subcategory_tape_dispenser" model="maintenance.equipment.subcategory">
-            <field name="name">Tape Dispenser</field>
-            <field name="category_id" ref="category_lab_processing"/>
-        </record>
-        <record id="subcategory_laminator" model="maintenance.equipment.subcategory">
-            <field name="name">Laminator</field>
-            <field name="category_id" ref="category_lab_processing"/>
-        </record>
-        <record id="subcategory_dewar" model="maintenance.equipment.subcategory">
-            <field name="name">LN2 Dewar</field>
-            <field name="category_id" ref="category_lab_processing"/>
-        </record>
-        <record id="subcategory_data_logger" model="maintenance.equipment.subcategory">
-            <field name="name">Data Logger</field>
-            <field name="category_id" ref="category_lab_processing"/>
-        </record>
-        <record id="subcategory_evaporator" model="maintenance.equipment.subcategory">
-            <field name="name">Evaporator</field>
-            <field name="category_id" ref="category_lab_processing"/>
-        </record>
-        <record id="subcategory_condenser" model="maintenance.equipment.subcategory">
-            <field name="name">Condensing Unit</field>
-            <field name="category_id" ref="category_lab_processing"/>
+        <!-- SCR (Aerial lift) Category -->
+        <record id="category_scr" model="maintenance.equipment.category">
+            <field name="name">SCR (Aerial lift)</field>
         </record>
 
-        <!-- Cleaning Equipment -->
-        <record id="category_cleaning" model="maintenance.equipment.category">
-            <field name="name">Cleaning Equipment</field>
-        </record>
-        <record id="subcategory_floor_scrubber" model="maintenance.equipment.subcategory">
-            <field name="name">Floor Scrubber</field>
-            <field name="category_id" ref="category_cleaning"/>
-        </record>
-        <record id="subcategory_steam_humidifier" model="maintenance.equipment.subcategory">
-            <field name="name">Steam Humidifier</field>
-            <field name="category_id" ref="category_cleaning"/>
-        </record>
-        <record id="subcategory_steam_sterilizer" model="maintenance.equipment.subcategory">
-            <field name="name">Steam Sterilizer</field>
-            <field name="category_id" ref="category_cleaning"/>
+        <!-- CAM (Camera) Category -->
+        <record id="category_cam" model="maintenance.equipment.category">
+            <field name="name">CAM (Camera)</field>
         </record>
 
-        <!-- Specialized Equipment -->
-        <record id="category_specialized" model="maintenance.equipment.category">
-            <field name="name">Specialized Equipment</field>
+        <!-- WRE (Wire) Category -->
+        <record id="category_wre" model="maintenance.equipment.category">
+            <field name="name">WRE (Wire)</field>
         </record>
-        <record id="subcategory_cryo_shipper" model="maintenance.equipment.subcategory">
-            <field name="name">Dewar Cryo Shipper</field>
-            <field name="category_id" ref="category_specialized"/>
+        <record id="subcategory_wre_lms" model="maintenance.equipment.subcategory">
+            <field name="name">LMS</field>
+            <field name="category_id" ref="category_wre"/>
         </record>
-        <record id="subcategory_cryo_clipper" model="maintenance.equipment.subcategory">
-            <field name="name">Cryo Clipper</field>
-            <field name="category_id" ref="category_specialized"/>
+        <record id="subcategory_wre_akp" model="maintenance.equipment.subcategory">
+            <field name="name">AKP (AKCP)</field>
+            <field name="category_id" ref="category_wre"/>
         </record>
-        <record id="subcategory_thermal_imager" model="maintenance.equipment.subcategory">
-            <field name="name">Thermal Imager</field>
-            <field name="category_id" ref="category_specialized"/>
-        </record>
-        <record id="subcategory_bench_scale" model="maintenance.equipment.subcategory">
-            <field name="name">Bench Scale</field>
-            <field name="category_id" ref="category_specialized"/>
-        </record>
-        <record id="subcategory_akcp_system" model="maintenance.equipment.subcategory">
-            <field name="name">AKCP System</field>
-            <field name="category_id" ref="category_specialized"/>
-        </record>
-        <record id="subcategory_plasma_cutter" model="maintenance.equipment.subcategory">
-            <field name="name">Plasma Cutter</field>
-            <field name="category_id" ref="category_specialized"/>
+        <record id="subcategory_wre_ct6" model="maintenance.equipment.subcategory">
+            <field name="name">CT6 (data)</field>
+            <field name="category_id" ref="category_wre"/>
         </record>
 
-        <!-- Infrastructure -->
-        <record id="category_infrastructure" model="maintenance.equipment.category">
-            <field name="name">Infrastructure</field>
-        </record>
-        <record id="subcategory_hvac" model="maintenance.equipment.subcategory">
-            <field name="name">HVAC</field>
-            <field name="category_id" ref="category_infrastructure"/>
-        </record>
-        <record id="subcategory_hvac_system" model="maintenance.equipment.subcategory">
-            <field name="name">HVAC System</field>
-            <field name="category_id" ref="category_infrastructure"/>
-        </record>
-        <record id="subcategory_generator" model="maintenance.equipment.subcategory">
-            <field name="name">Generator</field>
-            <field name="category_id" ref="category_infrastructure"/>
-        </record>
-        <record id="subcategory_ups" model="maintenance.equipment.subcategory">
-            <field name="name">UPS</field>
-            <field name="category_id" ref="category_infrastructure"/>
-        </record>
-        <record id="subcategory_ac" model="maintenance.equipment.subcategory">
-            <field name="name">AC</field>
-            <field name="category_id" ref="category_infrastructure"/>
+        <!-- HUM (Humidifier) Category -->
+        <record id="category_hum" model="maintenance.equipment.category">
+            <field name="name">HUM (Humidifier)</field>
         </record>
 
-        <!-- Sensors & Cables -->
-        <record id="category_sensors_cables" model="maintenance.equipment.category">
-            <field name="name">Sensors &amp; Cables</field>
-        </record>
-        <record id="subcategory_usb_rs9_connector" model="maintenance.equipment.subcategory">
-            <field name="name">USB RS9 Connector Cable</field>
-            <field name="category_id" ref="category_sensors_cables"/>
-        </record>
-        <record id="subcategory_tc_sensor" model="maintenance.equipment.subcategory">
-            <field name="name">TC Sensor</field>
-            <field name="category_id" ref="category_sensors_cables"/>
-        </record>
-        <record id="subcategory_tc_sensor_input" model="maintenance.equipment.subcategory">
-            <field name="name">TC Sensor Input</field>
-            <field name="category_id" ref="category_sensors_cables"/>
-        </record>
-        <record id="subcategory_tc_sensor_module" model="maintenance.equipment.subcategory">
-            <field name="name">TC Sensor Module</field>
-            <field name="category_id" ref="category_sensors_cables"/>
+        <!-- DUM (Dehumidifier) Category -->
+        <record id="category_dum" model="maintenance.equipment.category">
+            <field name="name">DUM (Dehumidifier)</field>
         </record>
 
-        <!-- Other Equipment -->
-        <record id="category_other" model="maintenance.equipment.category">
-            <field name="name">Other Equipment</field>
+        <!-- THR (Thermostat) Category -->
+        <record id="category_thr" model="maintenance.equipment.category">
+            <field name="name">THR (Thermostat)</field>
         </record>
-        <record id="subcategory_projector" model="maintenance.equipment.subcategory">
-            <field name="name">Projector</field>
-            <field name="category_id" ref="category_other"/>
+
+        <!-- PNL (Panel) Category -->
+        <record id="category_pnl" model="maintenance.equipment.category">
+            <field name="name">PNL (Panel)</field>
         </record>
-        <record id="subcategory_brush_cutter" model="maintenance.equipment.subcategory">
-            <field name="name">Brush Cutter</field>
-            <field name="category_id" ref="category_other"/>
+
+        <!-- VAL (Validations) Category -->
+        <record id="category_val" model="maintenance.equipment.category">
+            <field name="name">VAL (Validations)</field>
         </record>
-        <record id="subcategory_riding_lawn_mower" model="maintenance.equipment.subcategory">
-            <field name="name">Riding Lawn Mower</field>
-            <field name="category_id" ref="category_other"/>
+        <record id="subcategory_val_scl" model="maintenance.equipment.subcategory">
+            <field name="name">SCL (Scale)</field>
+            <field name="category_id" ref="category_val"/>
         </record>
-        <record id="subcategory_welder" model="maintenance.equipment.subcategory">
-            <field name="name">Welder</field>
-            <field name="category_id" ref="category_other"/>
+        <record id="subcategory_val_wgt" model="maintenance.equipment.subcategory">
+            <field name="name">WGT (Weight)</field>
+            <field name="category_id" ref="category_val"/>
         </record>
-        <record id="subcategory_boom_truck" model="maintenance.equipment.subcategory">
-            <field name="name">Boom Truck</field>
-            <field name="category_id" ref="category_other"/>
+        <record id="subcategory_val_mmt" model="maintenance.equipment.subcategory">
+            <field name="name">MMT (Multi-Memeter)</field>
+            <field name="category_id" ref="category_val"/>
         </record>
-        <record id="subcategory_rt_thermometer" model="maintenance.equipment.subcategory">
-            <field name="name">RT Thermometer</field>
-            <field name="category_id" ref="category_other"/>
+        <record id="subcategory_val_irt" model="maintenance.equipment.subcategory">
+            <field name="name">IRT (Infrared-Thermometer)</field>
+            <field name="category_id" ref="category_val"/>
+        </record>
+        <record id="subcategory_val_rhm" model="maintenance.equipment.subcategory">
+            <field name="name">RHM (%RH Meter)</field>
+            <field name="category_id" ref="category_val"/>
+        </record>
+        <record id="subcategory_val_avs" model="maintenance.equipment.subcategory">
+            <field name="name">AVS (Validator)</field>
+            <field name="category_id" ref="category_val"/>
+        </record>
+        <record id="subcategory_val_ddl" model="maintenance.equipment.subcategory">
+            <field name="name">DDL (Data Logger)</field>
+            <field name="category_id" ref="category_val"/>
+        </record>
+        <record id="subcategory_val_daq" model="maintenance.equipment.subcategory">
+            <field name="name">DAQ (National Instruments cDAQ/cFP)</field>
+            <field name="category_id" ref="category_val"/>
+        </record>
+        <record id="subcategory_val_sns" model="maintenance.equipment.subcategory">
+            <field name="name">SNS (Sensors, AKCP Units)</field>
+            <field name="category_id" ref="category_val"/>
+        </record>
+        <record id="subcategory_val_gau" model="maintenance.equipment.subcategory">
+            <field name="name">GAU (Gauges)</field>
+            <field name="category_id" ref="category_val"/>
+        </record>
+        <record id="subcategory_val_tct" model="maintenance.equipment.subcategory">
+            <field name="name">TCT (Thermocouple Thermometers)</field>
+            <field name="category_id" ref="category_val"/>
+        </record>
+
+        <!-- Computer (CMP) Category -->
+        <record id="category_cmp" model="maintenance.equipment.category">
+            <field name="name">Computer (CMP)</field>
+        </record>
+        <record id="subcategory_cmp_lpt" model="maintenance.equipment.subcategory">
+            <field name="name">LPT (Laptop)</field>
+            <field name="category_id" ref="category_cmp"/>
+        </record>
+        <record id="subcategory_cmp_srv" model="maintenance.equipment.subcategory">
+            <field name="name">SRV (Server)</field>
+            <field name="category_id" ref="category_cmp"/>
+        </record>
+        <record id="subcategory_cmp_tab" model="maintenance.equipment.subcategory">
+            <field name="name">TAB (Tablet)</field>
+            <field name="category_id" ref="category_cmp"/>
+        </record>
+        <record id="subcategory_cmp_dkp" model="maintenance.equipment.subcategory">
+            <field name="name">DKP (Desktop)</field>
+            <field name="category_id" ref="category_cmp"/>
+        </record>
+
+        <!-- Network (NET) Category -->
+        <record id="category_net" model="maintenance.equipment.category">
+            <field name="name">Network (NET)</field>
+        </record>
+        <record id="subcategory_net_swt" model="maintenance.equipment.subcategory">
+            <field name="name">SWT (Switch)</field>
+            <field name="category_id" ref="category_net"/>
+        </record>
+        <record id="subcategory_net_acp" model="maintenance.equipment.subcategory">
+            <field name="name">ACP (Access Point)</field>
+            <field name="category_id" ref="category_net"/>
+        </record>
+        <record id="subcategory_net_nas" model="maintenance.equipment.subcategory">
+            <field name="name">NAS (Network Access Storage)</field>
+            <field name="category_id" ref="category_net"/>
+        </record>
+        <record id="subcategory_net_cam" model="maintenance.equipment.subcategory">
+            <field name="name">CAM (Camera)</field>
+            <field name="category_id" ref="category_net"/>
+        </record>
+        <record id="subcategory_net_dvr" model="maintenance.equipment.subcategory">
+            <field name="name">DVR (Camera Controller)</field>
+            <field name="category_id" ref="category_net"/>
+        </record>
+        <record id="subcategory_net_frw" model="maintenance.equipment.subcategory">
+            <field name="name">FRW (Firewall)</field>
+            <field name="category_id" ref="category_net"/>
+        </record>
+
+        <!-- Communication (COM) Category -->
+        <record id="category_com" model="maintenance.equipment.category">
+            <field name="name">Communication (COM)</field>
+        </record>
+        <record id="subcategory_com_clp" model="maintenance.equipment.subcategory">
+            <field name="name">CLP (Cell Phone)</field>
+            <field name="category_id" ref="category_com"/>
+        </record>
+        <record id="subcategory_com_ipp" model="maintenance.equipment.subcategory">
+            <field name="name">IPP (IP Phone)</field>
+            <field name="category_id" ref="category_com"/>
+        </record>
+        <record id="subcategory_com_prt" model="maintenance.equipment.subcategory">
+            <field name="name">PRT (Printer)</field>
+            <field name="category_id" ref="category_com"/>
+        </record>
+        <record id="subcategory_com_mdm" model="maintenance.equipment.subcategory">
+            <field name="name">MDM (Modem)</field>
+            <field name="category_id" ref="category_com"/>
+        </record>
+        <record id="subcategory_com_clk" model="maintenance.equipment.subcategory">
+            <field name="name">CLK (IP Clock)</field>
+            <field name="category_id" ref="category_com"/>
+        </record>
+
+        <!-- Conference Room (CON) Category -->
+        <record id="category_con" model="maintenance.equipment.category">
+            <field name="name">Conference Room (CON)</field>
+        </record>
+        <record id="subcategory_con_prj" model="maintenance.equipment.subcategory">
+            <field name="name">PRJ (Projector)</field>
+            <field name="category_id" ref="category_con"/>
+        </record>
+        <record id="subcategory_con_scs" model="maintenance.equipment.subcategory">
+            <field name="name">SCS (Yealink Speaker)</field>
+            <field name="category_id" ref="category_con"/>
+        </record>
+        <record id="subcategory_con_scm" model="maintenance.equipment.subcategory">
+            <field name="name">SCM (Yealink Microphone)</field>
+            <field name="category_id" ref="category_con"/>
+        </record>
+        <record id="subcategory_con_mvc" model="maintenance.equipment.subcategory">
+            <field name="name">MVC (Yealink Room Hub)</field>
+            <field name="category_id" ref="category_con"/>
+        </record>
+        <record id="subcategory_con_yrp" model="maintenance.equipment.subcategory">
+            <field name="name">YRP (Yealink Room Panel)</field>
+            <field name="category_id" ref="category_con"/>
+        </record>
+        <record id="subcategory_con_rch" model="maintenance.equipment.subcategory">
+            <field name="name">RCH (Yealink Cable Hub)</field>
+            <field name="category_id" ref="category_con"/>
         </record>
     </data>
 </odoo> 
