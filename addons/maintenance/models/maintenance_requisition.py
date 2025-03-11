@@ -23,7 +23,11 @@ class MaintenanceRequisition(models.Model):
     ], string='Priority', default='medium', tracking=True)
     notes = fields.Text('Additional Notes', tracking=True)
     requester_name = fields.Char('Requester Name', required=True)
-    department = fields.Char('Department')
+    department = fields.Selection([
+        ('01', 'Maintenance (01)'),
+        ('02', 'Validations (02)'),
+        ('03', 'IT (03)')
+    ], string='Department', tracking=True)
     request_date = fields.Date('Request Date', default=fields.Date.today, readonly=True)
     
     # Remove tracking from binary field

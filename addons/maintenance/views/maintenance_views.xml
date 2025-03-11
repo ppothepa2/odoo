@@ -115,6 +115,7 @@
                             <field name="category_id" groups="maintenance.group_equipment_manager" 
                                    context="{'default_company_id':company_id}" 
                                    invisible="not equipment_id"/>
+                            <field name="department"/>
                             <field name="request_date" readonly="True"/>
                             <field name="done" invisible="1"/>
                             <field name="close_date" readonly="True" invisible="not done"/>
@@ -122,44 +123,6 @@
                             <field name="maintenance_type" invisible="version == 'child'"/>
                             <field name="schedule_date" readonly="version == 'child'"/>
                             <field name="subcategory_id" readonly="1"/>
-                            <label for="duration"/>
-                            <div>
-                                <field name="duration" widget="float_time" class="oe_inline"/> 
-                                <span class="ml8">hours</span>
-                            </div>
-                            <label for="recurring_maintenance" invisible="maintenance_type == 'corrective' or version == 'child'"/>
-                            <div class="d-inline-flex align-items-center" invisible="maintenance_type == 'corrective' or version == 'child'">
-                                <field name="recurring_maintenance" nolabel="1" class="ms-0" style="width: fit-content;"/>
-                                <button name="action_confirm_recurring" 
-                                        type="object" 
-                                        string="Confirm Schedule" 
-                                        class="btn btn-primary ms-2"
-                                        invisible="not recurring_maintenance or version == 'child'"/>
-                            </div>
-                            <label for="repeat_interval" invisible="not recurring_maintenance or version == 'child'"/>
-                            <div class="d-flex align-items-center" invisible="not recurring_maintenance or version == 'child'">
-                                <field name="repeat_interval" 
-                                       required="recurring_maintenance" 
-                                       class="me-2" 
-                                       style="max-width: 4rem !important;"/>
-                                <field name="repeat_unit" 
-                                       required="recurring_maintenance" 
-                                       class="me-2" 
-                                       style="max-width: 6rem !important;"/>
-                                <field name="repeat_type" 
-                                       required="recurring_maintenance" 
-                                       class="me-2" 
-                                       style="max-width: 8rem !important;"/>
-                                <field name="repeat_until" 
-                                       widget="date" 
-                                       invisible="repeat_type != 'until'" 
-                                       required="repeat_type == 'until'" 
-                                       class="me-2"
-                                       style="max-width: 8rem !important;"/>
-                            </div>
-                            <field name="priority" widget="priority"/>
-                            <field name="email_cc" string="Email cc" groups="base.group_no_one"/>
-                            <field name="company_id" options="{'no_create': True}" groups="base.group_multi_company"/>
                         </group>
                     </group>
                     <notebook>
@@ -492,6 +455,7 @@
                 </header>
                 <sheet>
                     <field name="company_id" invisible="1"/>
+                    <field name="department_readonly" invisible="1"/>
                     <field name="name_readonly" invisible="1"/>
                     <field name="category_readonly" invisible="1"/>
                     <field name="subcategory_readonly" invisible="1"/>
@@ -504,7 +468,8 @@
                     <field name="model_readonly" invisible="1"/>
                     <field name="cost_readonly" invisible="1"/>
                     <field name="warranty_readonly" invisible="1"/>
-                    
+                    <field name="department" readonly="department_readonly"/>
+
                     <div class="oe_title">
                         <h1>
                             <field name="registration_number" readonly="1" class="text-primary"/>
@@ -520,10 +485,10 @@
                             <field name="category_id" readonly="category_readonly"/>
                             <field name="subcategory_id" readonly="subcategory_readonly"
                                    domain="[('category_id', '=', category_id)]"/>
+                            <field name="department" readonly="department_readonly"/>
                             <field name="owner_user_id" readonly="owner_readonly"/>
                             <field name="technician_user_id" readonly="technician_readonly"/>
-                            <field name="maintenance_team_id" readonly="team_readonly"
-                                   domain="[('company_id', '=', company_id)]"/>
+                            <field name="maintenance_team_id" readonly="team_readonly"/>
                         </group>
                         <group>
                             <field name="partner_id" readonly="vendor_readonly"/>

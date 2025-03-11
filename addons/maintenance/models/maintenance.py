@@ -202,6 +202,7 @@ class MaintenanceEquipment(models.Model):
     model_readonly = fields.Boolean(compute='_compute_readonly_fields')
     cost_readonly = fields.Boolean(compute='_compute_readonly_fields')
     warranty_readonly = fields.Boolean(compute='_compute_readonly_fields')
+    department_readonly = fields.Boolean(compute='_compute_readonly_fields')
 
     # Add new fields
     registration_number = fields.Char('Registration Number', readonly=True, copy=False, tracking=True)
@@ -211,6 +212,13 @@ class MaintenanceEquipment(models.Model):
 
     # Add registration_date field
     registration_date = fields.Date('Registration Date', readonly=True, copy=False, tracking=True)
+
+    # Add department field with the same selection as in requisition
+    department = fields.Selection([
+        ('01', 'Maintenance (01)'),
+        ('02', 'Validations (02)'),
+        ('03', 'IT (03)')
+    ], string='Department', tracking=True)
 
     @api.depends('maintenance_ids.close_date', 'maintenance_ids.stage_id.done')
     def _compute_mtbf(self):
@@ -264,6 +272,7 @@ class MaintenanceEquipment(models.Model):
                 'owner_user_id': requisition.requester_id.id,
                 'technician_user_id': requisition.technician_id.id,
                 'maintenance_team_id': requisition.maintenance_team_id.id,
+                'department': requisition.department,  # Add department field
             }
             self.update(autofilled)
             self.is_autofilled = True
@@ -375,6 +384,7 @@ class MaintenanceEquipment(models.Model):
                         'owner_user_id': requisition.requester_id.id,
                         'technician_user_id': requisition.technician_id.id,
                         'maintenance_team_id': requisition.maintenance_team_id.id,
+                        'department': requisition.department,  # Add department field
                     }
                     vals.update(autofilled)
                     vals['is_autofilled'] = True
@@ -439,6 +449,7 @@ class MaintenanceEquipment(models.Model):
             equipment.model_readonly = is_readonly
             equipment.cost_readonly = is_readonly
             equipment.warranty_readonly = is_readonly
+            equipment.department_readonly = is_readonly
 
     @api.model
     def create_from_requisition(self, requisition_id, sequence):
@@ -460,7 +471,8 @@ class MaintenanceEquipment(models.Model):
             'requisition_id': requisition.id,
             'registration_number': registration_number,
             'registration_sequence': sequence,
-            'is_registered': False
+            'is_registered': False,
+            'department': requisition.department,  # Add department field
         }
         return self.create(vals)
 
@@ -580,6 +592,13 @@ class MaintenanceRequest(models.Model):
                                     string='Subcategory',
                                     related='equipment_id.subcategory_id',
                                     store=True)
+
+    # Add the department field with the same selection as in requisition
+    department = fields.Selection([
+        ('01', 'Maintenance (01)'),
+        ('02', 'Validations (02)'),
+        ('03', 'IT (03)')
+    ], string='Department', tracking=True)
 
     def archive_equipment_request(self):
         self.write({'archive': True, 'recurring_maintenance': False})
@@ -710,6 +729,7 @@ class MaintenanceRequest(models.Model):
     @api.onchange('equipment_id')
     def _onchange_equipment_id(self):
         if self.equipment_id:
+            self.department = self.equipment_id.department
             category = self.equipment_id.category_id
             subcategory = self.equipment_id.subcategory_id
             
