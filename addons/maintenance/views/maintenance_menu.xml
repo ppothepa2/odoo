@@ -1,0 +1,23 @@
+<!-- Maintenance Department Requisitions -->
+<menuitem id="menu_maintenance_requisition_maintenance"
+          name="Equipment Requisitions"
+          parent="menu_maintenance_title"
+          action="action_maintenance_requisition"
+          groups="maintenance.group_department_maintenance"
+          sequence="5"/>
+
+<!-- Validations Department Requisitions -->
+<menuitem id="menu_maintenance_requisition_validations"
+          name="Equipment Requisitions"
+          parent="menu_maintenance_title"
+          action="action_maintenance_requisition"
+          groups="maintenance.group_department_validations"
+          sequence="5"/>
+
+<!-- IT Department Requisitions -->
+<menuitem id="menu_maintenance_requisition_it"
+          name="Equipment Requisitions"
+          parent="menu_maintenance_title"
+          action="action_maintenance_requisition"
+          groups="maintenance.group_department_it"
+          sequence="5"/> 

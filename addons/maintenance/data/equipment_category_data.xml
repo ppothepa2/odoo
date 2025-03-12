@@ -4,6 +4,7 @@
         <!-- CTU (Freezer) Category -->
         <record id="category_ctu" model="maintenance.equipment.category">
             <field name="name">CTU (Freezer)</field>
+            <field name="department">01</field>
         </record>
         <record id="subcategory_ctu_020" model="maintenance.equipment.subcategory">
             <field name="name">020</field>
@@ -125,6 +126,7 @@
         <!-- VAL (Validations) Category -->
         <record id="category_val" model="maintenance.equipment.category">
             <field name="name">VAL (Validations)</field>
+            <field name="department">02</field>
         </record>
         <record id="subcategory_val_scl" model="maintenance.equipment.subcategory">
             <field name="name">SCL (Scale)</field>
@@ -174,6 +176,7 @@
         <!-- Computer (CMP) Category -->
         <record id="category_cmp" model="maintenance.equipment.category">
             <field name="name">Computer (CMP)</field>
+            <field name="department">03</field>
         </record>
         <record id="subcategory_cmp_lpt" model="maintenance.equipment.subcategory">
             <field name="name">LPT (Laptop)</field>
@@ -195,6 +198,7 @@
         <!-- Network (NET) Category -->
         <record id="category_net" model="maintenance.equipment.category">
             <field name="name">Network (NET)</field>
+            <field name="department">03</field>
         </record>
         <record id="subcategory_net_swt" model="maintenance.equipment.subcategory">
             <field name="name">SWT (Switch)</field>
@@ -224,6 +228,7 @@
         <!-- Communication (COM) Category -->
         <record id="category_com" model="maintenance.equipment.category">
             <field name="name">Communication (COM)</field>
+            <field name="department">03</field>
         </record>
         <record id="subcategory_com_clp" model="maintenance.equipment.subcategory">
             <field name="name">CLP (Cell Phone)</field>
@@ -249,6 +254,7 @@
         <!-- Conference Room (CON) Category -->
         <record id="category_con" model="maintenance.equipment.category">
             <field name="name">Conference Room (CON)</field>
+            <field name="department">03</field>
         </record>
         <record id="subcategory_con_prj" model="maintenance.equipment.subcategory">
             <field name="name">PRJ (Projector)</field>
@@ -273,6 +279,10 @@
         <record id="subcategory_con_rch" model="maintenance.equipment.subcategory">
             <field name="name">RCH (Yealink Cable Hub)</field>
             <field name="category_id" ref="category_con"/>
+        </record>
+
+        <record id="rule_equipment_category_by_department" model="ir.rule">
+            <field name="domain_force">[('department', '=', user.department)]</field>
         </record>
     </data>
 </odoo> 

@@ -1,5 +1,6 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
+from lxml import etree
 
 class EquipmentRegistration(models.Model):
     _name = 'equipment.registration'
@@ -102,6 +103,41 @@ class EquipmentRegistration(models.Model):
                 'registration_id': registration.id,
                 'equipment_id': equipment.id,
             })
+
+    def _default_department(self):
+        """Set default department based on user access rights"""
+        if self.env.user.has_group('maintenance.group_department_maintenance'):
+            return '01'
+        elif self.env.user.has_group('maintenance.group_department_validations'):
+            return '02'
+        elif self.env.user.has_group('maintenance.group_department_it'):
+            return '03'
+        return '01'  # Default to maintenance
+
+    department = fields.Selection([
+        ('01', 'Maintenance (01)'),
+        ('02', 'Validations (02)'),
+        ('03', 'IT (03)')
+    ], string='Department', default=_default_department, readonly=True)
+
+    @api.model
+    def fields_view_get(self, view_id=None, view_type='form', toolbar=False, submenu=False):
+        # Override to dynamically modify domain based on user
+        result = super(EquipmentRegistration, self).fields_view_get(view_id=view_id, view_type=view_type, toolbar=toolbar, submenu=submenu)
+        
+        if view_type == 'form' and result.get('fields', {}).get('requisition_id'):
+            doc = etree.XML(result['arch'])
+            for node in doc.xpath("//field[@name='requisition_id']"):
+                if self.env.user.has_group('maintenance.group_maintenance_super_admin'):
+                    # Admin sees all done requisitions
+                    node.set('domain', "[('state', '=', 'done')]")
+                else:
+                    # Others see only their department's
+                    dept = self._default_department()
+                    node.set('domain', f"[('state', '=', 'done'), ('department', '=', '{dept}')]")
+            
+            result['arch'] = etree.tostring(doc, encoding='unicode')
+        return result
 
 class EquipmentRegistrationLine(models.Model):
     _name = 'equipment.registration.line'

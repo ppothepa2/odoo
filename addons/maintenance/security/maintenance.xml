@@ -64,6 +64,91 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
+    <record id="rule_equipment_category_by_department" model="ir.rule">
+        <field name="name">Equipment Category: Access only department's categories</field>
+        <field name="model_id" ref="model_maintenance_equipment_category"/>
+        <field name="domain_force">[
+            '|', 
+            ('department', '=', False), 
+            ('department', '=', 
+                user.has_group('maintenance.group_department_maintenance') and '01' or 
+                user.has_group('maintenance.group_department_validations') and '02' or 
+                user.has_group('maintenance.group_department_it') and '03'
+            )
+        ]</field>
+        <field name="groups" eval="[
+            (4, ref('maintenance.group_department_maintenance')), 
+            (4, ref('maintenance.group_department_validations')),
+            (4, ref('maintenance.group_department_it'))
+        ]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_equipment_subcategory_by_department" model="ir.rule">
+        <field name="name">Equipment Subcategory: Access only department's subcategories</field>
+        <field name="model_id" ref="model_maintenance_equipment_subcategory"/>
+        <field name="domain_force">[('category_id.department', '=', user.has_group('maintenance.group_department_maintenance') and '01' or 
+                                                                 user.has_group('maintenance.group_department_validations') and '02' or 
+                                                                 user.has_group('maintenance.group_department_it') and '03')]</field>
+        <field name="groups" eval="[(4, ref('maintenance.group_department_maintenance')), 
+                                  (4, ref('maintenance.group_department_validations')),
+                                  (4, ref('maintenance.group_department_it'))]"/>
+    </record>
+
+    <record id="rule_equipment_by_department" model="ir.rule">
+        <field name="name">Equipment: Access only department's equipment</field>
+        <field name="model_id" ref="model_maintenance_equipment"/>
+        <field name="domain_force">[('department', '=', user.has_group('maintenance.group_department_maintenance') and '01' or 
+                                                  user.has_group('maintenance.group_department_validations') and '02' or 
+                                                  user.has_group('maintenance.group_department_it') and '03')]</field>
+        <field name="groups" eval="[(4, ref('maintenance.group_department_maintenance')), 
+                                  (4, ref('maintenance.group_department_validations')),
+                                  (4, ref('maintenance.group_department_it'))]"/>
+    </record>
+
+    <record id="rule_requisition_by_department" model="ir.rule">
+        <field name="name">Requisition: Access only department's requisitions</field>
+        <field name="model_id" ref="model_maintenance_requisition"/>
+        <field name="domain_force">[('department', '=', user.has_group('maintenance.group_department_maintenance') and '01' or 
+                                              user.has_group('maintenance.group_department_validations') and '02' or 
+                                              user.has_group('maintenance.group_department_it') and '03')]</field>
+        <field name="groups" eval="[(4, ref('maintenance.group_department_maintenance')), 
+                                  (4, ref('maintenance.group_department_validations')),
+                                  (4, ref('maintenance.group_department_it'))]"/>
+    </record>
+
+    <record id="rule_equipment_registration_create_by_department" model="ir.rule">
+        <field name="name">Equipment Registration: Create only for department's requisitions</field>
+        <field name="model_id" ref="model_equipment_registration"/>
+        <field name="domain_force">[('requisition_id.department', '=', user.has_group('maintenance.group_department_maintenance') and '01' or user.has_group('maintenance.group_department_validations') and '02' or user.has_group('maintenance.group_department_it') and '03')]</field>
+        <field name="perm_read" eval="False"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+        <field name="groups" eval="[(4, ref('maintenance.group_department_maintenance')), (4, ref('maintenance.group_department_validations')), (4, ref('maintenance.group_department_it'))]"/>
+    </record>
+
+    <record id="rule_equipment_registration_read_all" model="ir.rule">
+        <field name="name">Equipment Registration: Read all registrations</field>
+        <field name="model_id" ref="model_equipment_registration"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+        <field name="groups" eval="[(4, ref('maintenance.group_department_maintenance')), (4, ref('maintenance.group_department_validations')), (4, ref('maintenance.group_department_it'))]"/>
+    </record>
+
+    <record id="rule_requisition_admin_access" model="ir.rule">
+        <field name="name">Admin: Access to all requisitions</field>
+        <field name="model_id" ref="model_maintenance_requisition"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('maintenance.group_maintenance_super_admin'))]"/>
+    </record>
+
     </data>
 
 </odoo>

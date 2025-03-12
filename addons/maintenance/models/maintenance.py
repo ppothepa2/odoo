@@ -54,6 +54,13 @@ class MaintenanceEquipmentCategory(models.Model):
     fold = fields.Boolean(string='Folded in Maintenance Pipe', compute='_compute_fold', store=True)
     subcategories = fields.One2many('maintenance.equipment.subcategory', 'category_id', string='Subcategories')
 
+    # Add department field
+    department = fields.Selection([
+        ('01', 'Maintenance (01)'),
+        ('02', 'Validations (02)'),
+        ('03', 'IT (03)')
+    ], string='Department', required=True, default='01', tracking=True)
+
     def _compute_equipment_count(self):
         equipment_data = self.env['maintenance.equipment']._read_group([('category_id', 'in', self.ids)], ['category_id'], ['__count'])
         mapped_data = {category.id: count for category, count in equipment_data}
@@ -476,6 +483,19 @@ class MaintenanceEquipment(models.Model):
         }
         return self.create(vals)
 
+    def _default_department(self):
+        if self.env.user.has_group('maintenance.group_department_maintenance'):
+            return '01'
+        elif self.env.user.has_group('maintenance.group_department_validations'):
+            return '02'
+        elif self.env.user.has_group('maintenance.group_department_it'):
+            return '03'
+        return '01'  # Default to maintenance
+
+    def _onchange_department(self):
+        if self.department:
+            self.category_id = self.env['maintenance.equipment.category'].search([('department', '=', self.department)], limit=1)
+
 
 class MaintenanceChecklistTemplate(models.Model):
     _name = 'maintenance.checklist.template'
@@ -573,8 +593,7 @@ class MaintenanceRequest(models.Model):
     ], default="forever", string="Until")
     repeat_until = fields.Date(
         string='Repeat Until', 
-        default=fields.Date.to_string(fields.Date.today() + relativedelta(year=2024, month=12, day=30))
-    )
+        default=fields.Date.to_string(fields.Date.today() + relativedelta(year=2024, month=12, day=30)))
     checklist_item_ids = fields.One2many('maintenance.checklist.item', 'request_id', string='Checklist Items')
 
     # Add these new fields
@@ -1040,7 +1059,7 @@ class MaintenanceTeam(models.Model):
         for team in self:
             team.todo_request_ids = self.env['maintenance.request'].search([('maintenance_team_id', '=', team.id), ('stage_id.done', '=', False), ('archive', '=', False)])
             data = self.env['maintenance.request']._read_group(
-                [('maintenance_team_id', '=', team.id), ('stage_id.done', '=', False), ('archive', '=', False)],
+                [('maintenance_team_id', '=', team.id), ('stage_id.done', '=', False)],
                 ['schedule_date:year', 'priority', 'kanban_state'],
                 ['__count']
             )

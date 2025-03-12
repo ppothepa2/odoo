@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Grant mail creation rights to Maintenance Department -->
+    <record id="mail_mail_access_maintenance" model="ir.model.access">
+        <field name="name">mail.mail.access.maintenance</field>
+        <field name="model_id" ref="mail.model_mail_mail"/>
+        <field name="group_id" ref="maintenance.group_department_maintenance"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <!-- Grant mail creation rights to Validations Department -->
+    <record id="mail_mail_access_validations" model="ir.model.access">
+        <field name="name">mail.mail.access.validations</field>
+        <field name="model_id" ref="mail.model_mail_mail"/>
+        <field name="group_id" ref="maintenance.group_department_validations"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <!-- Grant mail creation rights to IT Department -->
+    <record id="mail_mail_access_it" model="ir.model.access">
+        <field name="name">mail.mail.access.it</field>
+        <field name="model_id" ref="mail.model_mail_mail"/>
+        <field name="group_id" ref="maintenance.group_department_it"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <!-- Grant mail creation rights to Accounting Team -->
+    <record id="mail_mail_access_accounting" model="ir.model.access">
+        <field name="name">mail.mail.access.accounting</field>
+        <field name="model_id" ref="mail.model_mail_mail"/>
+        <field name="group_id" ref="maintenance.group_accounting_team"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+</odoo> 

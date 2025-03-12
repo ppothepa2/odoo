@@ -35,6 +35,7 @@
                                     <group>
                                         <field name="name" readonly="state != 'draft'"/>
                                         <field name="category_id" 
+                                               domain="[('department', '=', department)]"
                                                options="{'no_create': True, 'no_open': True}"
                                                readonly="state != 'draft'"/>
                                         <field name="subcategory_id" 
@@ -47,7 +48,7 @@
                                     </group>
                                     <group>
                                         <field name="requester_name" readonly="state != 'draft'"/>
-                                        <field name="department" readonly="state != 'draft'"/>
+                                        <field name="department" readonly="1"/>
                                         <field name="request_date"/>
                                         <field name="state" invisible="1"/>
                                     </group>
@@ -336,4 +337,39 @@
               parent="menu_maintenance_title"
               action="action_maintenance_requisition"
               sequence="5"/>
+
+    <!-- Ensure the admin view doesn't have restrictive domain filters -->
+    <record id="view_maintenance_requisition_tree_admin" model="ir.ui.view">
+        <field name="name">maintenance.requisition.tree.admin</field>
+        <field name="model">maintenance.requisition</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="requisition_number"/>
+                <field name="name"/>
+                <field name="department" string="Department"/>
+                <field name="requester_name"/>
+                <field name="request_date"/>
+                <field name="state"/>
+                <!-- other fields -->
+            </tree>
+        </field>
+        <field name="groups_id" eval="[(4, ref('maintenance.group_maintenance_super_admin'))]"/>
+    </record>
+
+    <!-- Update the action to use this view for admins -->
+    <record id="action_maintenance_requisition_admin" model="ir.actions.act_window">
+        <field name="name">All Equipment Requisitions</field>
+        <field name="res_model">maintenance.requisition</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[]</field> <!-- No domain restriction -->
+        <field name="context">{}</field> <!-- No context filtering -->
+    </record>
+
+    <!-- Add a menu item specifically for admin access to all requisitions -->
+    <menuitem id="menu_maintenance_requisition_admin"
+              name="All Equipment Requisitions"
+              parent="menu_maintenance_title"
+              action="action_maintenance_requisition_admin"
+              groups="maintenance.group_maintenance_super_admin"
+              sequence="3"/>
 </odoo>

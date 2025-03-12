@@ -26,6 +26,25 @@
         <field name="implied_ids" eval="[(4, ref('group_maintenance_team')), (4, ref('group_accounting_team'))]"/>
     </record>
 
+    <!-- Add after existing groups -->
+    <record id="group_department_maintenance" model="res.groups">
+        <field name="name">Maintenance Department</field>
+        <field name="category_id" ref="module_category_maintenance"/>
+        <field name="implied_ids" eval="[(4, ref('group_maintenance_team'))]"/>
+    </record>
+
+    <record id="group_department_validations" model="res.groups">
+        <field name="name">Validations Department</field>
+        <field name="category_id" ref="module_category_maintenance"/>
+        <field name="implied_ids" eval="[(4, ref('group_maintenance_team'))]"/>
+    </record>
+
+    <record id="group_department_it" model="res.groups">
+        <field name="name">IT Department</field>
+        <field name="category_id" ref="module_category_maintenance"/>
+        <field name="implied_ids" eval="[(4, ref('group_maintenance_team'))]"/>
+    </record>
+
     <!-- Category Access Rights -->
     <record id="access_maintenance_equipment_category_user" model="ir.model.access">
         <field name="name">maintenance.equipment.category user</field>
@@ -66,5 +85,28 @@
         <field name="perm_write" eval="1"/>
         <field name="perm_create" eval="1"/>
         <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <!-- Add a new super admin group with access to everything -->
+    <record id="group_maintenance_super_admin" model="res.groups">
+        <field name="name">Maintenance Super Admin</field>
+        <field name="category_id" ref="module_category_maintenance"/>
+        <field name="implied_ids" eval="[
+            (4, ref('group_equipment_manager')),
+            (4, ref('group_maintenance_team')),
+            (4, ref('group_accounting_team')),
+            (4, ref('group_department_maintenance')),
+            (4, ref('group_department_validations')),
+            (4, ref('group_department_it'))
+        ]"/>
+        <field name="users" eval="[(4, ref('base.user_admin'))]"/>
+    </record>
+
+    <!-- Add a rule to give super admin access to everything -->
+    <record id="rule_maintenance_super_admin_access" model="ir.rule">
+        <field name="name">Super Admin: Access to all records</field>
+        <field name="model_id" ref="model_maintenance_equipment_category"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('maintenance.group_maintenance_super_admin'))]"/>
     </record>
 </odoo> 

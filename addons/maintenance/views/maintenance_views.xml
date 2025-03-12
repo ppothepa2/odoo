@@ -86,7 +86,10 @@
             <form string="Maintenance Request">
                 <field name="version" invisible="1"/>
                 <field name="company_id" invisible="1"/>
-                <field name="category_id" invisible="1"/>
+                <field name="category_id" 
+                       domain="[('department', '=', department)]" 
+                       options="{'no_create': True, 'no_open': True}" 
+                       required="True"/>
                 <header>
                     <button string="Cancel" name="archive_equipment_request" type="object" invisible="archive"/>
                     <button string="Reopen Request" name="reset_equipment_request" type="object" invisible="not archive"/>
@@ -112,9 +115,6 @@
                         <group>
                             <field name="owner_user_id" string="Requested By" invisible="1"/>
                             <field name="equipment_id" context="{'default_company_id': company_id}"/>
-                            <field name="category_id" groups="maintenance.group_equipment_manager" 
-                                   context="{'default_company_id':company_id}" 
-                                   invisible="not equipment_id"/>
                             <field name="department"/>
                             <field name="request_date" readonly="True"/>
                             <field name="done" invisible="1"/>

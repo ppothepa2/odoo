@@ -11,6 +11,16 @@ class MaintenanceRequisition(models.Model):
     _order = 'is_summary desc, card_color_order desc, requisition_number desc'
     _rec_name = 'requisition_number'
 
+    # Add this function at the top of the class before any fields
+    def _default_department(self):
+        if self.env.user.has_group('maintenance.group_department_maintenance'):
+            return '01'
+        elif self.env.user.has_group('maintenance.group_department_validations'):
+            return '02'
+        elif self.env.user.has_group('maintenance.group_department_it'):
+            return '03'
+        return '01'  # Default to maintenance
+
     requisition_number = fields.Char('Requisition Number', readonly=True, copy=False, tracking=True)
     name = fields.Char('Name', required=True, tracking=True)
     description = fields.Text('Description', tracking=True)
@@ -27,7 +37,7 @@ class MaintenanceRequisition(models.Model):
         ('01', 'Maintenance (01)'),
         ('02', 'Validations (02)'),
         ('03', 'IT (03)')
-    ], string='Department', tracking=True)
+    ], string='Department', tracking=True, default=_default_department, readonly=True)
     request_date = fields.Date('Request Date', default=fields.Date.today, readonly=True)
     
     # Remove tracking from binary field
@@ -352,3 +362,19 @@ class MaintenanceRequisition(models.Model):
     def _compute_equipment_registration_count(self):
         for record in self:
             record.equipment_registration_count = len(record.equipment_registration_ids.filtered('is_registered'))
+
+    def _search_requisitions(self, domain=None):
+        domain = domain or []
+        if self.env.user.has_group('maintenance.group_maintenance_super_admin'):
+            # No additional domain restrictions for admin
+            return domain
+        
+        # Normal department-based restrictions for non-admin users
+        if self.env.user.has_group('maintenance.group_department_maintenance'):
+            domain.append(('department', '=', '01'))
+        elif self.env.user.has_group('maintenance.group_department_validations'):
+            domain.append(('department', '=', '02'))
+        elif self.env.user.has_group('maintenance.group_department_it'):
+            domain.append(('department', '=', '03'))
+        
+        return domain
