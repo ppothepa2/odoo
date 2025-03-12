@@ -33,3 +33,4 @@ access_mail_mail_validations,mail.mail.validations,mail.model_mail_mail,maintena
 access_mail_mail_it,mail.mail.it,mail.model_mail_mail,maintenance.group_department_it,1,1,1,0
 access_mail_mail_accounting,mail.mail.accounting,mail.model_mail_mail,maintenance.group_accounting_team,1,1,1,0
 access_maintenance_equipment_validations,maintenance.equipment.validations,model_maintenance_equipment,maintenance.group_department_validations,1,1,1,0
+access_equipment_registration_wizard,equipment.registration.wizard,model_equipment_registration_wizard,base.group_user,1,1,1,1

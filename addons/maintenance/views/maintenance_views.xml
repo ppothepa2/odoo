@@ -471,11 +471,13 @@
                     <field name="department" readonly="department_readonly"/>
 
                     <div class="oe_title">
+                        <label for="equipment_identifier" class="oe_edit_only"/>
                         <h1>
-                            <field name="registration_number" readonly="1" class="text-primary"/>
+                            <field name="equipment_identifier" placeholder="Equipment Identifier" class="oe_inline"/>
                         </h1>
+                        <label for="name" class="oe_edit_only"/>
                         <h2>
-                            <field name="name" placeholder="Equipment Name"/>
+                            <field name="name" placeholder="Equipment Name" class="oe_inline"/>
                         </h2>
                     </div>
                     <group>
@@ -526,12 +528,12 @@
     </record>
 
     <record id="hr_equipment_view_kanban" model="ir.ui.view">
-        <field name="name">equipment.kanban</field>
+        <field name="name">maintenance.equipment.kanban</field>
         <field name="model">maintenance.equipment</field>
         <field name="arch" type="xml">
-            <kanban sample="1">
-                <field name="name"/>
-                <field name="color"/>
+            <kanban>
+                <field name="display_name"/>
+                <field name="equipment_identifier"/>
                 <field name="technician_user_id"/>
                 <field name="owner_user_id"/>
                 <field name="category_id"/>
@@ -560,7 +562,7 @@
                         <div t-attf-class="{{!selection_mode ? 'oe_kanban_color_' + kanban_getcolor(record.color.raw_value) : ''}} oe_kanban_card oe_kanban_global_click">
                             <div class="oe_kanban_content" tooltip="kanban-tooltip">
                                 <div class="o_kanban_record_top">
-                                    <b class="o_kanban_record_title"><field name="name"/><small><span t-if="record.model.raw_value"> (<field name="model"/>)</span></small></b>
+                                    <b class="o_kanban_record_title"><field name="display_name"/><small><span t-if="record.model.raw_value"> (<field name="model"/>)</span></small></b>
                                 </div>
                                 <div class="o_kanban_record_body">
                                     <div t-if="record.serial_no.raw_value"><field name="serial_no"/></div>
@@ -1294,7 +1296,7 @@
         <field name="arch" type="xml">
             <kanban default_group_by="category_id" class="o_kanban_small_column" records_draggable="0">
                 <field name="category_id"/>
-                <field name="name"/>
+                <field name="equipment_identifier"/>
                 <field name="registration_number"/>
                 <field name="partner_ref"/>
                 <field name="partner_id"/>
@@ -1306,7 +1308,7 @@
                             <div class="oe_kanban_content p-2">
                                 <div class="o_kanban_record_top mb-2">
                                     <strong class="h6">
-                                        <field name="name"/>
+                                        <field name="equipment_identifier"/>
                                     </strong>
                                 </div>
                                 <div class="o_kanban_record_body small">

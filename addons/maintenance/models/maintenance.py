@@ -143,6 +143,7 @@ class MaintenanceEquipment(models.Model):
     _inherit = ['mail.thread.cc', 'mail.activity.mixin']
     _description = 'Maintenance Equipment'
     _check_company_auto = True
+    _rec_name = 'equipment_identifier'
 
     SUBCATEGORY_SELECTION = [
         ('mechanical', 'Mechanical'),
@@ -155,7 +156,7 @@ class MaintenanceEquipment(models.Model):
         ('other', 'Other')
     ]
 
-    name = fields.Char('Equipment Name', required=True, tracking=True)
+    name = fields.Char('Label', tracking=True)
     active = fields.Boolean(default=True)
     category_id = fields.Many2one('maintenance.equipment.category', string='Equipment Category', required=True, tracking=True)
     subcategory_id = fields.Many2one('maintenance.equipment.subcategory', string='Subcategory', required=True, tracking=True)
@@ -226,6 +227,10 @@ class MaintenanceEquipment(models.Model):
         ('02', 'Validations (02)'),
         ('03', 'IT (03)')
     ], string='Department', tracking=True)
+
+    # Add equipment identifier field
+    equipment_identifier = fields.Char('Equipment Identifier', readonly=True, copy=False, tracking=True,
+                                      help="Unique identifier for equipment in format YY-DEPT-CAT-SUB-Number")
 
     @api.depends('maintenance_ids.close_date', 'maintenance_ids.stage_id.done')
     def _compute_mtbf(self):
@@ -304,27 +309,22 @@ class MaintenanceEquipment(models.Model):
             self.autofilled_fields = False
 
     def action_register_equipment(self):
-        """Register the equipment"""
-        for equipment in self:
-            if equipment.registration_number:
-                equipment.write({
-                    'is_registered': True,
-                    'registration_number': equipment.registration_number.replace('TEMP/', '')
-                })
-                
-                # Get the registration record and check if all equipment is registered
-                registration = self.env['equipment.registration'].browse(
-                    equipment.registration_line_id.registration_id.id
-                )
-                if registration:
-                    registered_count = len(registration.equipment_ids.filtered('is_registered'))
-                    total_count = len(registration.equipment_ids)
-                    
-                    if registered_count == total_count and registration.registration_number.startswith('TEMP/'):
-                        registration.write({
-                            'registration_number': registration.registration_number.replace('TEMP/', '')
-                        })
-        return True
+        """Open registration wizard instead of directly registering equipment"""
+        self.ensure_one()
+        if not self.registration_number:
+            raise UserError(_("This equipment doesn't have a registration number."))
+        
+        return {
+            'name': _('Register Equipment'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'equipment.registration.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'active_model': 'maintenance.equipment',
+                'active_id': self.id,
+            },
+        }
 
     def _track_subtype(self, init_values):
         """Override to handle message subtypes for equipment"""
@@ -334,13 +334,17 @@ class MaintenanceEquipment(models.Model):
             return self.env.ref('mail.mt_note')
         return super(MaintenanceEquipment, self)._track_subtype(init_values)
 
-    @api.depends('serial_no')
+    @api.depends('equipment_identifier', 'serial_no', 'name')
     def _compute_display_name(self):
         for record in self:
-            if record.serial_no:
+            if record.equipment_identifier:
+                record.display_name = record.equipment_identifier
+            elif record.serial_no and record.name:
                 record.display_name = record.name + '/' + record.serial_no
-            else:
+            elif record.name:
                 record.display_name = record.name
+            else:
+                record.display_name = _("Equipment")
 
     @api.model
     def _name_search(self, name, domain=None, operator='ilike', limit=None, order=None):
