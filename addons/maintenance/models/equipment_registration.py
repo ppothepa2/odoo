@@ -18,6 +18,7 @@ class EquipmentRegistration(models.Model):
         ('partially_registered', 'Partially Registered'),
         ('fully_registered', 'Fully Registered')
     ], string='Status', default='draft', tracking=True, copy=False, required=True)
+    equipment_identifiers = fields.Html(string='Registered Equipment', compute='_compute_equipment_identifiers', store=True)
     
     @api.onchange('requisition_id')
     def _onchange_requisition_id(self):
@@ -30,6 +31,11 @@ class EquipmentRegistration(models.Model):
             self.requisition_id.write({
                 'state': 'partially_registered_with_equipment'
             })
+
+    @api.onchange('requisition_id')
+    def _onchange_requisition_department(self):
+        if self.requisition_id and self.requisition_id.department:
+            self.department = self.requisition_id.department
 
     @api.depends('equipment_ids.is_registered')
     def _compute_progress(self):
@@ -81,6 +87,11 @@ class EquipmentRegistration(models.Model):
     @api.model
     def create(self, vals):
         """Create registration lines when creating the registration"""
+        if vals.get('requisition_id') and not vals.get('department'):
+            requisition = self.env['maintenance.requisition'].browse(vals['requisition_id'])
+            if requisition and requisition.department:
+                vals['department'] = requisition.department
+        
         res = super().create(vals)
         if res.requisition_id and not res.equipment_ids:
             self._create_equipment_lines(res)
@@ -139,6 +150,28 @@ class EquipmentRegistration(models.Model):
             result['arch'] = etree.tostring(doc, encoding='unicode')
         return result
 
+    @api.depends('equipment_ids.is_registered', 'equipment_ids.equipment_id.equipment_identifier')
+    def _compute_equipment_identifiers(self):
+        for record in self:
+            registered_equipment = record.equipment_ids.filtered('is_registered')
+            if registered_equipment:
+                # Create a bullet list of equipment identifiers
+                identifiers = []
+                for line in registered_equipment:
+                    # Get the equipment identifier from the equipment record
+                    identifier = line.equipment_id.equipment_identifier
+                    if identifier:
+                        identifiers.append(f"• {identifier}")
+                    else:
+                        # Fallback to registration number if no identifier
+                        identifiers.append(f"• (Pending) {line.registration_number}")
+                if identifiers:
+                    record.equipment_identifiers = "<div>" + "<br/>".join(identifiers) + "</div>"
+                else:
+                    record.equipment_identifiers = "<div>No equipment registered</div>"
+            else:
+                record.equipment_identifiers = "<div>No equipment registered</div>"
+
 class EquipmentRegistrationLine(models.Model):
     _name = 'equipment.registration.line'
     _description = 'Equipment Registration Line'
@@ -149,6 +182,7 @@ class EquipmentRegistrationLine(models.Model):
     equipment_id = fields.Many2one('maintenance.equipment', string='Equipment')
     registration_number = fields.Char(related='equipment_id.registration_number', readonly=True, store=True)
     is_registered = fields.Boolean(related='equipment_id.is_registered', readonly=True, store=True)
+    equipment_identifier = fields.Char(related='equipment_id.equipment_identifier', readonly=True, store=True)
 
     def action_open_equipment(self):
         return {

@@ -76,7 +76,6 @@ class MaintenanceRequisition(models.Model):
     vendor_reference = fields.Char('Vendor Reference', tracking=True)
     model = fields.Char('Model', tracking=True)
     serial_number = fields.Char('Serial Number', tracking=True)
-    cost = fields.Float('Cost', tracking=True)
     warranty_expiration_date = fields.Date('Warranty Expiration', tracking=True)
 
     is_temporary = fields.Boolean(
@@ -287,7 +286,7 @@ class MaintenanceRequisition(models.Model):
                     <li>Status: {dict(self._fields['state'].selection).get(self.state)}</li>
                     <li>Vendor: {self.vendor.name or ''}</li>
                     <li>Model: {self.model or ''}</li>
-                    <li>Cost: {self.cost or 0.0}</li>
+                    <li>Expected Cost: {self.expected_cost or 0.0}</li>
                     <li>Warranty Expiration: {self.warranty_expiration_date or ''}</li>
                     {f"<li>Rejection Reason: {self.rejection_reason}</li>" if action == 'rejected' else ""}
                     {f"<li>PO Number: {self.po_number}</li>" if self.po_number else ""}
@@ -352,6 +351,19 @@ class MaintenanceRequisition(models.Model):
         self.subcategory_id = False  # Clear the subcategory when category changes
         if not self.category_id:
             return {'domain': {'subcategory_id': []}}
+        
+        # Always include the NAN subcategory
+        nan_subcategory = self.env['maintenance.equipment.subcategory'].search([
+            ('name', '=', 'Not Available'),
+            ('category_id', '=', self.category_id.id)
+        ], limit=1)
+        
+        if not nan_subcategory and self.category_id:
+            nan_subcategory = self.env['maintenance.equipment.subcategory'].create({
+                'name': 'Not Available',
+                'category_id': self.category_id.id
+            })
+        
         return {
             'domain': {
                 'subcategory_id': [('category_id', '=', self.category_id.id)]

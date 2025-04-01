@@ -21,6 +21,7 @@
                     <group>
                         <group>
                             <field name="requisition_id" domain="[('state', '=', 'done')]"/>
+                            <field name="department"/>
                             <field name="progress"/>
                         </group>
                     </group>
@@ -49,8 +50,9 @@
         <field name="arch" type="xml">
             <tree>
                 <field name="registration_number"/>
-                <field name="requisition_id"/>
+                <field name="department"/>
                 <field name="progress"/>
+                <field name="equipment_identifiers" string="Registered Equipment"/>
                 <field name="state"/>
             </tree>
         </field>

@@ -87,7 +87,6 @@
                                     <field name="model" readonly="state != 'draft'"/>
                                 </group>
                                 <group>
-                                    <field name="cost" readonly="state != 'draft'"/>
                                     <field name="warranty_expiration_date" readonly="state != 'draft'"/>
                                 </group>
                             </group>

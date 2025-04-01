@@ -88,6 +88,28 @@ class MaintenanceEquipmentCategory(models.Model):
             defaults['category_id'] = self.id
         return values
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            # If category exists but subcategory doesn't, find or create the NAN subcategory
+            if 'category_id' in vals and not vals.get('subcategory_id'):
+                nan_subcategory = self.env['maintenance.equipment.subcategory'].search([
+                    ('name', '=', 'Not Available'),
+                    ('category_id', '=', vals['category_id'])
+                ], limit=1)
+                
+                if not nan_subcategory:
+                    # Create it if it doesn't exist
+                    nan_subcategory = self.env['maintenance.equipment.subcategory'].create({
+                        'name': 'Not Available',
+                        'category_id': vals['category_id']
+                    })
+                
+                vals['subcategory_id'] = nan_subcategory.id
+                
+            # ... rest of the existing create method ...
+        return super().create(vals_list)
+
 
 class MaintenanceEquipmentSubcategory(models.Model):
     _name = 'maintenance.equipment.subcategory'
@@ -229,8 +251,15 @@ class MaintenanceEquipment(models.Model):
     ], string='Department', tracking=True)
 
     # Add equipment identifier field
-    equipment_identifier = fields.Char('Equipment Identifier', readonly=True, copy=False, tracking=True,
-                                      help="Unique identifier for equipment in format YY-DEPT-CAT-SUB-Number")
+    equipment_identifier = fields.Char(
+        'Equipment Identifier', 
+        compute='_compute_equipment_identifier',
+        store=True,
+        readonly=True,
+        copy=False, 
+        tracking=True,
+        help="Unique identifier for equipment in format YY-DEPT-CAT-SUB-Number"
+    )
 
     @api.depends('maintenance_ids.close_date', 'maintenance_ids.stage_id.done')
     def _compute_mtbf(self):
@@ -268,7 +297,7 @@ class MaintenanceEquipment(models.Model):
     @api.onchange('requisition_id')
     def _onchange_requisition_id(self):
         """Autopopulate fields from requisition when selected"""
-        if self.requisition_id and not self.is_manual_override:
+        if self.requisition_id and not self.is_manual_overr:
             requisition = self.requisition_id
             # Map only requisition fields
             autofilled = {
@@ -499,6 +528,56 @@ class MaintenanceEquipment(models.Model):
     def _onchange_department(self):
         if self.department:
             self.category_id = self.env['maintenance.equipment.category'].search([('department', '=', self.department)], limit=1)
+
+    @api.depends('department', 'category_id', 'subcategory_id', 'registration_sequence', 'is_registered')
+    def _compute_equipment_identifier(self):
+        for equipment in self:
+            # Only set the identifier when equipment is registered
+            if equipment.is_registered and equipment.equipment_identifier:
+                # Keep existing identifier if already set
+                continue
+            elif equipment.is_registered:
+                # Generate identifier only for registered equipment 
+                # This should typically be set by the wizard, not computed
+                if not equipment.equipment_identifier:
+                    # If somehow we got here without an identifier, generate a temporary one
+                    equipment._generate_equipment_identifier()
+            else:
+                # For unregistered equipment, keep identifier empty
+                equipment.equipment_identifier = False
+
+    def _generate_equipment_identifier(self):
+        """Generate equipment identifier when registering equipment"""
+        # This should not be called directly - only through the wizard
+        year = fields.Date.today().strftime('%y')
+        department = self.department or '01'  # Default to '01' if not set
+        
+        # Get category code (first 3 letters)
+        category_code = 'UNK'
+        if self.category_id and self.category_id.name:
+            category_code = self.category_id.name[:3].upper()
+        
+        # Get subcategory code (first 3 letters or NAN if missing)
+        subcategory_code = 'NAN'
+        if self.subcategory_id and self.subcategory_id.name:
+            subcategory_code = self.subcategory_id.name[:3].upper()
+        
+        # Start sequence from 1403
+        starting_sequence = 1403
+        
+        # Find the highest sequence number currently in use
+        last_equipment = self.env['maintenance.equipment'].search([
+            ('equipment_identifier', '!=', False),
+            ('equipment_identifier', 'like', f"{year}-{department}-{category_code}-{subcategory_code}-%")
+        ], order='equipment_identifier desc', limit=1)
+        
+        next_sequence = starting_sequence
+        if last_equipment and last_equipment.equipment_identifier:
+            parts = last_equipment.equipment_identifier.split('-')
+            if len(parts) >= 5 and parts[4].isdigit():
+                next_sequence = int(parts[4]) + 1
+        
+        self.equipment_identifier = f"{year}-{department}-{category_code}-{subcategory_code}-{next_sequence}"
 
 
 class MaintenanceChecklistTemplate(models.Model):

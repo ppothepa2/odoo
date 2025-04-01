@@ -109,4 +109,14 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('maintenance.group_maintenance_super_admin'))]"/>
     </record>
+
+    <record id="access_equipment_registration_line_accounting" model="ir.model.access">
+        <field name="name">equipment.registration.line.accounting</field>
+        <field name="model_id" ref="model_equipment_registration_line"/>
+        <field name="group_id" ref="group_accounting_team"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="0"/>
+        <field name="perm_create" eval="0"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
 </odoo> 

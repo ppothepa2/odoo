@@ -18,7 +18,7 @@ class EquipmentRegistrationWizard(models.TransientModel):
         return res
     
     def _generate_equipment_identifier(self, equipment):
-        """Generate equipment identifier in format YY-Dept-Category-Subcategory-Number"""
+        """Generate equipment identifier in format YY-DEPT-CAT-SUB-Number"""
         # Get current year (2 digits)
         import datetime
         current_year = str(datetime.datetime.now().year)[-2:]
@@ -27,42 +27,35 @@ class EquipmentRegistrationWizard(models.TransientModel):
         dept_code = equipment.department or '01'  # Default to '01' if not set
         
         # Get category code (3 letters)
-        category_code = 'NAN'
+        category_code = 'UNK'
         if equipment.category_id and equipment.category_id.name:
-            # Extract first 3 letters from category name in parentheses if exists
-            import re
-            match = re.search(r'\(([A-Za-z]{3})\)', equipment.category_id.name)
-            if match:
-                category_code = match.group(1).upper()
-            else:
-                # Take first 3 letters of category name
-                category_code = equipment.category_id.name[:3].upper()
+            category_code = equipment.category_id.name[:3].upper()
         
         # Get subcategory code (3 letters)
         subcategory_code = 'NAN'
         if equipment.subcategory_id and equipment.subcategory_id.name:
-            # Extract first 3 letters from subcategory name in parentheses if exists
-            match = re.search(r'\(([A-Za-z]{3})\)', equipment.subcategory_id.name)
-            if match:
-                subcategory_code = match.group(1).upper()
-            else:
-                # Take first 3 letters of subcategory name
-                subcategory_code = equipment.subcategory_id.name[:3].upper()
+            subcategory_code = equipment.subcategory_id.name[:3].upper()
         
-        # Get next sequence number
-        last_equipment = self.env['maintenance.equipment'].search([
-            ('equipment_identifier', '!=', False)
-        ], order='id desc', limit=1)
+        # Starting sequence
+        starting_sequence = 1403
         
-        next_number = 1404  # Default starting number
-        if last_equipment and last_equipment.equipment_identifier:
-            # Extract the last number from the identifier
-            parts = last_equipment.equipment_identifier.split('-')
-            if len(parts) >= 5 and parts[4].isdigit():
-                next_number = int(parts[4]) + 1
+        # Find the highest sequence number across ALL equipment
+        all_equipment = self.env['maintenance.equipment'].search([
+            ('equipment_identifier', '!=', False),
+            ('is_registered', '=', True)
+        ])
+        
+        next_sequence = starting_sequence
+        for equip in all_equipment:
+            if equip.equipment_identifier:
+                parts = equip.equipment_identifier.split('-')
+                if len(parts) >= 5 and parts[4].isdigit():
+                    seq_number = int(parts[4])
+                    if seq_number >= next_sequence:
+                        next_sequence = seq_number + 1
         
         # Combine all parts to form the identifier
-        return f"{current_year}-{dept_code}-{category_code}-{subcategory_code}-{next_number}"
+        return f"{current_year}-{dept_code}-{category_code}-{subcategory_code}-{next_sequence}"
     
     def action_confirm(self):
         """Confirm equipment registration with the proposed identifier"""
