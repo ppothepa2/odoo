@@ -63,7 +63,7 @@
                                        invisible="state not in ('partially_registered_with_equipment', 'fully_registered_with_equipment')"
                                        readonly="1">
                                     <tree>
-                                        <field name="registration_number"/>
+                                        <field name="equipment_identifier"/>
                                         <field name="is_registered"/>
                                         <button name="action_open_equipment" 
                                                 type="object" 
