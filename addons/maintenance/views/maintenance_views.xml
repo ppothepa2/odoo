@@ -84,16 +84,37 @@
         <field name="model">maintenance.request</field>
         <field name="arch" type="xml">
             <form string="Maintenance Request">
+                <field name="archive" invisible="1"/>
                 <field name="version" invisible="1"/>
                 <field name="company_id" invisible="1"/>
                 <field name="category_id" 
                        domain="[('department', '=', department)]" 
                        options="{'no_create': True, 'no_open': True}" 
                        required="True"/>
+                <field name="is_in_draft_stage" invisible="1"/>
+                <field name="field_readonly" invisible="1"/>
+                <field name="can_start_maintenance" invisible="1"/>
+                <field name="can_finish_maintenance" invisible="1"/>
                 <header>
+                    <button name="action_submit_request" 
+                            string="Submit" 
+                            type="object" 
+                            class="oe_highlight" 
+                            invisible="not is_in_draft_stage"/>
                     <button string="Cancel" name="archive_equipment_request" type="object" invisible="archive"/>
                     <button string="Reopen Request" name="reset_equipment_request" type="object" invisible="not archive"/>
                     <field name="stage_id" widget="statusbar" options="{'clickable': '1'}" invisible="archive"/>
+                    <button name="action_start_maintenance" 
+                            string="Start Maintenance" 
+                            type="object" 
+                            class="oe_highlight"
+                            invisible="not can_start_maintenance"/>
+                    <button name="action_finish_maintenance" 
+                            type="object" 
+                            string="Finish Maintenance"
+                            class="oe_highlight"
+                            groups="maintenance.group_equipment_manager"
+                            invisible="not can_finish_maintenance"/>
                 </header>
                 <sheet>
                     <div invisible="not archive">
@@ -101,33 +122,39 @@
                     </div>
                     <field name="kanban_state" widget="state_selection"/>
                     <div class="oe_title">
-                        <label for="name" string="Request"/>
-                        <h1>
-                            <field name="name" placeholder="e.g. Maintenance of Monitor"/>
+                        <h1 class="d-flex">
+                            <field name="name" placeholder="e.g. Maintenance of Monitor" readonly="field_readonly"/>
                         </h1>
-                        <h3>
-                            <field name="version" readonly="1" 
-                                   decoration-info="version == 'main'"
-                                   decoration-muted="version == 'child'"/>
-                        </h3>
                     </div>
                     <group>
-                        <group>
-                            <field name="owner_user_id" string="Requested By" invisible="1"/>
-                            <field name="equipment_id" context="{'default_company_id': company_id}"/>
-                            <field name="department"/>
-                            <field name="request_date" readonly="True"/>
-                            <field name="done" invisible="1"/>
-                            <field name="close_date" readonly="True" invisible="not done"/>
-                            <field name="archive" invisible="1"/>
-                            <field name="maintenance_type" invisible="version == 'child'"/>
-                            <field name="schedule_date" readonly="version == 'child'"/>
-                            <field name="subcategory_id" readonly="1"/>
+                        <group name="main_info">
+                            <field name="equipment_id" readonly="field_readonly"/>
+                            <field name="department" readonly="field_readonly"/>
+                            <field name="subcategory_id" readonly="field_readonly"/>
+                            <field name="request_date" readonly="field_readonly"/>
+                            <field name="maintenance_type" readonly="field_readonly"/>
+                            <field name="schedule_date" readonly="field_readonly"/>
+                            <field name="start_date" readonly="1"/>
+                            <field name="end_date" readonly="1"/>
+                        </group>
+                        <group name="recurring_info" invisible="maintenance_type != 'preventive'">
+                            <field name="recurring_maintenance" readonly="field_readonly" invisible="version == 'child'"/>
+                            <field name="repeat_interval" readonly="field_readonly" invisible="version == 'child'"/>
+                            <field name="repeat_unit" readonly="field_readonly" invisible="version == 'child'"/>
+                            <field name="repeat_type" readonly="field_readonly" invisible="version == 'child'"/>
+                            <field name="repeat_until" readonly="field_readonly" invisible="version == 'child'"/>
+                            <div class="mt-2" invisible="not recurring_maintenance">
+                                <button name="action_confirm_recurring" 
+                                        string="Set Recurring Schedule" 
+                                        type="object" 
+                                        class="btn btn-primary"
+                                        invisible="maintenance_type != 'preventive' or not recurring_maintenance"/>
+                            </div>
                         </group>
                     </group>
                     <notebook>
                         <page string="Notes">
-                            <field name='description' placeholder="Internal Notes"/>
+                            <field name='description' placeholder="Internal Notes" readonly="field_readonly"/>
                         </page>
                         <page string="Instructions">
                             <group col="1">
@@ -148,10 +175,10 @@
                             </group>
                         </page>
                         <page string="Checklist" name="checklist">
-                            <field name="checklist_item_ids" editable="bottom" options="{'no_create': True, 'no_delete': True}">
-                                <tree editable="bottom">
+                            <field name="checklist_item_ids">
+                                <tree editable="bottom" create="1" delete="0">
                                     <field name="sequence" widget="handle"/>
-                                    <field name="name" readonly="1" force_save="1"/>
+                                    <field name="name" readonly="readonly_state"/>
                                     <field name="is_checked" readonly="readonly_state"/>
                                     <field name="observation" readonly="readonly_state"/>
                                     <field name="checked_by" readonly="1"/>
@@ -446,6 +473,19 @@
         <field name="model">maintenance.equipment</field>
         <field name="arch" type="xml">
             <form string="Equipment">
+                <field name="team_readonly" invisible="1"/>
+                <field name="name_readonly" invisible="1"/>
+                <field name="category_readonly" invisible="1"/>
+                <field name="subcategory_readonly" invisible="1"/>
+                <field name="owner_readonly" invisible="1"/>
+                <field name="technician_readonly" invisible="1"/>
+                <field name="vendor_readonly" invisible="1"/>
+                <field name="vendor_ref_readonly" invisible="1"/>
+                <field name="serial_readonly" invisible="1"/>
+                <field name="model_readonly" invisible="1"/>
+                <field name="cost_readonly" invisible="1"/>
+                <field name="warranty_readonly" invisible="1"/>
+                <field name="department_readonly" invisible="1"/>
                 <header>
                     <button name="action_register_equipment" 
                             string="Register Equipment" 
@@ -455,19 +495,6 @@
                 </header>
                 <sheet>
                     <field name="company_id" invisible="1"/>
-                    <field name="department_readonly" invisible="1"/>
-                    <field name="name_readonly" invisible="1"/>
-                    <field name="category_readonly" invisible="1"/>
-                    <field name="subcategory_readonly" invisible="1"/>
-                    <field name="owner_readonly" invisible="1"/>
-                    <field name="technician_readonly" invisible="1"/>
-                    <field name="team_readonly" invisible="1"/>
-                    <field name="vendor_readonly" invisible="1"/>
-                    <field name="vendor_ref_readonly" invisible="1"/>
-                    <field name="serial_readonly" invisible="1"/>
-                    <field name="model_readonly" invisible="1"/>
-                    <field name="cost_readonly" invisible="1"/>
-                    <field name="warranty_readonly" invisible="1"/>
                     <field name="department" readonly="department_readonly"/>
 
                     <div class="oe_title">

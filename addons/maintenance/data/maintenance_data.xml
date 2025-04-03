@@ -3,6 +3,12 @@
 <data noupdate="0">
 
     <!-- Standard stages for Maintenance Request -->
+    <record id="stage_draft" model="maintenance.stage">
+        <field name="name">Draft</field>
+        <field name="sequence">0</field>
+        <field name="fold">False</field>
+        <field name="done">False</field>
+    </record>
     <record id="stage_0" model="maintenance.stage">
         <field name="name">New Request</field>
         <field name="sequence" eval="1" />

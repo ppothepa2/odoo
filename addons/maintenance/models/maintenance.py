@@ -396,9 +396,12 @@ class MaintenanceEquipment(models.Model):
         string='Maintenance Schedule'
     )
 
-    @api.onchange('category_id')
-    def _onchange_category_id(self):
-        self.technician_user_id = self.category_id.technician_user_id
+    @api.onchange('equipment_id')
+    def _onchange_equipment_id(self):
+        if self.equipment_id:
+            self.department = self.equipment_id.department
+            # We're not automatically creating checklists here anymore
+            # They will be created when confirming the recurring schedule
 
     _sql_constraints = [
         ('serial_no', 'unique(serial_no)', "Another asset already exists with this serial number!"),
@@ -579,6 +582,20 @@ class MaintenanceEquipment(models.Model):
         
         self.equipment_identifier = f"{year}-{department}-{category_code}-{subcategory_code}-{next_sequence}"
 
+    def name_get(self):
+        result = []
+        for record in self:
+            if record.equipment_identifier:
+                name = record.equipment_identifier
+                if record.name:
+                    name = f"{name} - {record.name}"
+            elif record.name:
+                name = record.name
+            else:
+                name = _("Unnamed Equipment")
+            result.append((record.id, name))
+        return result
+
 
 class MaintenanceChecklistTemplate(models.Model):
     _name = 'maintenance.checklist.template'
@@ -611,7 +628,8 @@ class MaintenanceRequest(models.Model):
 
     @api.returns('self')
     def _default_stage(self):
-        return self.env['maintenance.stage'].search([], limit=1)
+        # Updated to specifically return the 'Draft' stage
+        return self.env['maintenance.stage'].search([('name', '=', 'Draft')], limit=1)
 
     def _creation_subtype(self):
         return self.env.ref('maintenance.mt_req_created')
@@ -629,7 +647,8 @@ class MaintenanceRequest(models.Model):
             team = MT.search([], limit=1)
         return team.id
 
-    name = fields.Char('Subjects', required=True)
+    name = fields.Char('Identifier', readonly=True, required=True, 
+                       default=lambda self: _('New Request'))
     company_id = fields.Many2one('res.company', string='Company', required=True,
         default=lambda self: self.env.company)
     description = fields.Html('Description')
@@ -702,6 +721,148 @@ class MaintenanceRequest(models.Model):
         ('03', 'IT (03)')
     ], string='Department', tracking=True)
 
+    is_recurring_locked = fields.Boolean('Recurring Locked', default=False)
+
+    # Add these fields
+    end_date = fields.Datetime('End Date', readonly=True, copy=False)
+    can_finish_maintenance = fields.Boolean(compute='_compute_can_finish_maintenance')
+    start_date = fields.Datetime('Start Date', readonly=True, copy=False)
+    can_start_maintenance = fields.Boolean(compute='_compute_can_start_maintenance')
+
+    @api.depends('stage_id')
+    def _compute_can_finish_maintenance(self):
+        """Show Finish Maintenance button only in In Progress stage"""
+        for record in self:
+            record.can_finish_maintenance = record.stage_id.name == 'In Progress'
+
+    @api.depends('stage_id')
+    def _compute_can_start_maintenance(self):
+        """Show Start Maintenance button only in New Request stage"""
+        for record in self:
+            record.can_start_maintenance = record.stage_id.name == 'New Request'
+
+    def action_finish_maintenance(self):
+        """Complete maintenance and move to Repaired stage"""
+        repaired_stage = self.env['maintenance.stage'].search([('name', '=', 'Repaired')], limit=1)
+        if not repaired_stage:
+            raise UserError(_("Stage 'Repaired' not found."))
+        
+        return self.write({
+            'stage_id': repaired_stage.id,
+            'end_date': fields.Datetime.now()
+        })
+
+    def action_start_maintenance(self):
+        """Move request to In Progress stage and set start date"""
+        in_progress_stage = self.env['maintenance.stage'].search([('name', '=', 'In Progress')], limit=1)
+        if not in_progress_stage:
+            raise UserError(_("Stage 'In Progress' not found."))
+        
+        # This will trigger the computation of readonly_state for checklist items
+        result = self.write({
+            'stage_id': in_progress_stage.id,
+            'start_date': fields.Datetime.now()
+        })
+        
+        # Explicitly refresh the checklist items to ensure they reflect the new editable state
+        self.checklist_item_ids._compute_readonly_state()
+        
+        return result
+
+    def _create_recurring_requests(self):
+        """Modified to ensure child requests are created with correct settings"""
+        self.ensure_one()
+        if not self.recurring_maintenance or self.version != 'main':
+            return
+
+        # Get the New Request stage
+        new_request_stage = self.env['maintenance.stage'].search([('name', '=', 'New Request')], limit=1)
+        if not new_request_stage:
+            raise UserError(_("Stage 'New Request' not found."))
+
+        # Get the last child sequence number
+        last_child = self.child_ids.sorted('child_sequence', reverse=True)[:1]
+        next_sequence = (last_child.child_sequence or 0) + 1
+
+        # Calculate next schedule date
+        schedule_date = self.schedule_date or fields.Datetime.now()
+        
+        # Parse the main request name to build child names
+        name_parts = self.name.split('-')
+        
+        # Default values if parsing fails
+        category_code = 'UNK'
+        subcategory_code = 'NAN'
+        equipment_suffix = '0000'
+        period_code = 'X'
+        
+        # Extract parts from main request name if possible
+        if len(name_parts) == 4:
+            category_code = name_parts[0]
+            subcategory_code = name_parts[1]
+            equipment_suffix = name_parts[2]
+            period_code = name_parts[3]
+        
+        # Generate child requests until repeat_until or indefinitely
+        while True:
+            schedule_date += relativedelta(**{f"{self.repeat_unit}s": self.repeat_interval})
+            
+            # Check if we should stop generating requests
+            if self.repeat_type == 'until' and schedule_date.date() > self.repeat_until:
+                break
+
+            # Generate child name with sequence
+            child_name = f"{category_code}-{subcategory_code}-{equipment_suffix}-{period_code}-C{next_sequence:02d}"
+            
+            # Create child request with the new name format
+            child_vals = {
+                'name': child_name,
+                'equipment_id': self.equipment_id.id,
+                'maintenance_type': self.maintenance_type,
+                'schedule_date': schedule_date,
+                'parent_id': self.id,
+                'child_sequence': next_sequence,
+                'maintenance_team_id': self.maintenance_team_id.id,
+                'user_id': self.user_id.id,
+                'duration': self.duration,
+                'priority': self.priority,
+                'version': 'child',
+                'category_id': self.category_id.id,
+                'description': self.description,
+                'company_id': self.company_id.id,
+                'owner_user_id': self.owner_user_id.id,
+                'instruction_type': self.instruction_type,
+                'instruction_text': self.instruction_text,
+                'instruction_pdf': self.instruction_pdf,
+                'instruction_google_slide': self.instruction_google_slide,
+                'is_recurring_locked': True,  # Ensure child requests are locked
+                'recurring_maintenance': False,  # Ensure child requests aren't recurring
+                'stage_id': new_request_stage.id,  # Start in New Request stage
+            }
+            child_request = self.env['maintenance.request'].create(child_vals)
+
+            # Copy the checklist items from the main request to ensure they match
+            self._copy_checklist_items_to_child(child_request)
+
+            next_sequence += 1
+
+            # If repeat type is forever, limit to 52 occurrences (1 year) for safety
+            if self.repeat_type == 'forever' and next_sequence > 52:
+                break
+
+    def action_submit_request(self):
+        """Submit the request by moving it to the 'New Request' stage."""
+        # Get the exact stage names from the database
+        new_request_stage = self.env['maintenance.stage'].search([('name', '=', 'New Request')], limit=1)
+        if not new_request_stage:
+            raise UserError(_("Stage 'New Request' not found. Please ensure it exists."))
+        
+        for request in self:
+            # Ensure we're only in the Draft stage
+            if request.stage_id and request.stage_id.name == 'Draft':
+                request.write({'stage_id': new_request_stage.id})
+        return True
+
     def archive_equipment_request(self):
         self.write({'archive': True, 'recurring_maintenance': False})
 
@@ -761,19 +922,64 @@ class MaintenanceRequest(models.Model):
         return maintenance_requests
 
     def write(self, vals):
-        # Overridden to reset the kanban_state to normal whenever
-        # the stage (stage_id) of the Maintenance Request changes.
+        """Consolidated write method handling all maintenance request features."""
+        # 1. Handle kanban state resets for stage changes
         if vals and 'kanban_state' not in vals and 'stage_id' in vals:
             vals['kanban_state'] = 'normal'
         
-        # Create recurring requests when main request is marked as done
-        if ('stage_id' in vals or 'recurring_maintenance' in vals) and self.maintenance_type == 'preventive':
-            stage = self.env['maintenance.stage'].browse(vals.get('stage_id', self.stage_id.id))
-            if stage.done and (self.recurring_maintenance or vals.get('recurring_maintenance')):
-                if self.version == 'main':
-                    self._create_recurring_requests()
-                
+        # 2. Check stage sequence restrictions
+        if 'stage_id' in vals:
+            new_stage = self.env['maintenance.stage'].browse(vals['stage_id'])
+            for request in self:
+                if (request.stage_id.sequence > new_stage.sequence or
+                    (request.stage_id.name == 'In Progress' and new_stage.name == 'New Request')):
+                    raise UserError(_("Cannot move maintenance request backwards in stages."))
+        
+        # 3. Handle schedule date updates for child requests
+        if 'schedule_date' in vals:
+            for request in self.filtered(lambda r: r.version == 'main'):
+                base_date = fields.Datetime.from_string(vals['schedule_date'])
+                for child in request.child_ids:
+                    new_date = base_date + relativedelta(**{
+                        f"{request.repeat_unit}s": request.repeat_interval * child.child_sequence
+                    })
+                    super(MaintenanceRequest, child).write({'schedule_date': new_date})
+        
+        # 4. Check restrictions for child request updates
+        for request in self:
+            if request.version == 'child' and any(f in vals for f in [
+                'maintenance_type', 'recurring_maintenance', 'repeat_interval',
+                'repeat_unit', 'repeat_type', 'repeat_until', 'version'
+            ]):
+                raise UserError(_("Cannot modify maintenance type or recurring settings in child requests. Please modify the main request instead."))
+        
+        # 5. Call super to update the record
         res = super(MaintenanceRequest, self).write(vals)
+        
+        # 6. Create recurring requests when marked as done or recurring settings change
+        recurring_field_changed = any(f in vals for f in [
+            'recurring_maintenance', 'repeat_interval', 'repeat_unit', 
+            'repeat_type', 'repeat_until'
+        ])
+        
+        stage_done = False
+        if 'stage_id' in vals:
+            stage = self.env['maintenance.stage'].browse(vals['stage_id'])
+            stage_done = stage.done
+        
+        if (recurring_field_changed or ('stage_id' in vals and stage_done)) and self.filtered(
+            lambda r: r.recurring_maintenance and r.maintenance_type == 'preventive' 
+                      and r.version == 'main'
+        ):
+            for request in self.filtered(lambda r: r.recurring_maintenance and 
+                                       r.maintenance_type == 'preventive' and 
+                                       r.version == 'main'):
+                # Clear existing child requests
+                request.child_ids.unlink()
+                # Create new child requests
+                request._create_recurring_requests()
+        
+        # 7. Handle follower updates and activity updates
         if vals.get('owner_user_id') or vals.get('user_id'):
             self._add_followers()
         if 'stage_id' in vals:
@@ -783,10 +989,10 @@ class MaintenanceRequest(models.Model):
             self.activity_update()
         if vals.get('user_id') or vals.get('schedule_date'):
             self.activity_update()
-        if self._need_new_activity(vals):
-            # need to change description of activity also so unlink old and create new activity
+        if vals.get('equipment_id'):
             self.activity_unlink(['maintenance.mail_act_maintenance_request'])
             self.activity_update()
+        
         return res
 
     def _need_new_activity(self, vals):
@@ -832,129 +1038,43 @@ class MaintenanceRequest(models.Model):
     def _onchange_equipment_id(self):
         if self.equipment_id:
             self.department = self.equipment_id.department
-            category = self.equipment_id.category_id
-            subcategory = self.equipment_id.subcategory_id
-            
-            _logger.info(f"Selected Equipment: {self.equipment_id.name}")
-            _logger.info(f"Category: {category.name}, Subcategory: {subcategory}")
-            
-            # Clear existing checklist items
-            self.checklist_item_ids = [(5, 0, 0)]
+            # We're not automatically creating checklists here anymore
+            # They will be created when confirming the recurring schedule
 
-            checklist_key = (category.name.lower(), subcategory.lower())
-            if checklist_key in self.get_checklist_items():
-                checklist_vals = []
-                for sequence, item_name in enumerate(self.get_checklist_items()[checklist_key], 1):
-                    _logger.debug(f"Creating checklist item: {item_name} with sequence: {sequence}")
-                    checklist_vals.append((0, 0, {
-                        'name': item_name,
-                        'sequence': sequence,
-                        'is_checked': False,
-                        'observation': False,
-                    }))
-                self.checklist_item_ids = checklist_vals
-            else:
-                _logger.warning(f"No checklist found for Category: {category.name}, Subcategory: {subcategory}")
-
-    def get_checklist_items(self):
-        return {
-            ('machinery', 'forklift'): [
-                'Check hydraulic fluid levels',
-                'Inspect fork condition and wear',
-                'Test brake system functionality',
-                'Check tire condition and pressure',
-                'Inspect safety features (lights, horn, backup alarm)'
-            ],
-            ('machinery', 'crane'): [
-                'Inspect wire ropes and chains',
-                'Check hook and safety latch',
-                'Test limit switches',
-                'Check hydraulic system for leaks',
-                'Verify load capacity indicators'
-            ],
-            ('machinery', 'conveyor'): [
-                'Check belt tension and alignment',
-                'Inspect rollers for wear',
-                'Test emergency stop system',
-                'Check motor and gearbox condition',
-                'Inspect belt surface condition'
-            ],
-        }
-
-    def _create_recurring_requests(self):
-        self.ensure_one()
-        if not self.recurring_maintenance or self.version != 'main':
+    def _copy_checklist_items_to_child(self, child_request):
+        """Copy checklist items from main request to a child request"""
+        if not self.checklist_item_ids:
             return
-
-        # Get the last child sequence number
-        last_child = self.child_ids.sorted('child_sequence', reverse=True)[:1]
-        next_sequence = (last_child.child_sequence or 0) + 1
-
-        # Calculate next schedule date
-        schedule_date = self.schedule_date or fields.Datetime.now()
         
-        # Generate child requests until repeat_until or indefinitely
-        while True:
-            schedule_date += relativedelta(**{f"{self.repeat_unit}s": self.repeat_interval})
-            
-            # Check if we should stop generating requests
-            if self.repeat_type == 'until' and schedule_date.date() > self.repeat_until:
-                break
-
-            # Create child request
-            child_vals = {
-                'name': f"{self.name} - Child {next_sequence}",
-                'equipment_id': self.equipment_id.id,
-                'maintenance_type': self.maintenance_type,
-                'schedule_date': schedule_date,
-                'parent_id': self.id,
-                'child_sequence': next_sequence,
-                'maintenance_team_id': self.maintenance_team_id.id,
-                'user_id': self.user_id.id,
-                'duration': self.duration,
-                'priority': self.priority,
-                'version': 'child',
-                # Add these additional fields
-                'category_id': self.category_id.id,
-                'description': self.description,
-                'company_id': self.company_id.id,
-                'owner_user_id': self.owner_user_id.id,
-                'instruction_type': self.instruction_type,
-                'instruction_text': self.instruction_text,
-                'instruction_pdf': self.instruction_pdf,
-                'instruction_google_slide': self.instruction_google_slide,
-            }
-            child_request = self.env['maintenance.request'].create(child_vals)
-
-            # Create checklist items for the child request
-            for item in self.checklist_item_ids:
-                self.env['maintenance.checklist.item'].create({
-                    'name': item.name,
-                    'sequence': item.sequence,
-                    'request_id': child_request.id,
-                    'is_checked': False,  # Start unchecked
-                    'observation': '',    # Start with empty observation
-                })
-
-            next_sequence += 1
-
-            # If repeat type is forever, limit to 52 occurrences (1 year) for safety
-            if self.repeat_type == 'forever' and next_sequence > 52:
-                break
-
-    def write(self, vals):
-        res = super().write(vals)
+        # Clear any existing checklist items to prevent duplicates
+        child_request.checklist_item_ids.unlink()
         
-        # Generate child requests when recurring maintenance is enabled
-        if 'recurring_maintenance' in vals or any(f in vals for f in ['repeat_interval', 'repeat_unit', 'repeat_type', 'repeat_until']):
-            for request in self:
-                if request.recurring_maintenance and request.maintenance_type == 'preventive' and request.version == 'main':
-                    # Clear existing child requests
-                    request.child_ids.unlink()
-                    # Create new child requests
-                    request._create_recurring_requests()
-        
-        return res
+        for item in self.checklist_item_ids:
+            self.env['maintenance.checklist.item'].create({
+                'name': item.name,
+                'sequence': item.sequence,
+                'request_id': child_request.id,
+                'is_checked': False,
+                'observation': False,
+            })
+
+    def _is_in_draft_stage(self):
+        """Check if the maintenance request is in 'Draft' stage."""
+        for record in self:
+            record.is_in_draft_stage = record.stage_id.name == 'Draft'
+
+    # Add this field to the MaintenanceRequest model
+    is_in_draft_stage = fields.Boolean(string='Is Draft Stage', compute='_is_in_draft_stage')
+
+    def _compute_field_readonly(self):
+        """Compute if fields should be readonly based on stage"""
+        for record in self:
+            # Make fields readonly if not in Draft stage
+            is_readonly = record.stage_id.name != 'Draft'
+            record.field_readonly = is_readonly
+
+    # Add this field to the MaintenanceRequest model
+    field_readonly = fields.Boolean(string='Fields Readonly', compute='_compute_field_readonly')
 
     def action_open_child_request(self):
         """Opens the child maintenance request in form view."""
@@ -996,42 +1116,6 @@ class MaintenanceRequest(models.Model):
             self._create_recurring_requests()
         return True
 
-    def write(self, vals):
-        """Consolidated write method with proper handling of schedule dates"""
-        # Handle schedule date updates first
-        if 'schedule_date' in vals:
-            # If this is a main request, update child request schedule dates
-            for request in self.filtered(lambda r: r.version == 'main'):
-                base_date = fields.Datetime.from_string(vals['schedule_date'])
-                for child in request.child_ids:
-                    # Calculate new schedule date based on sequence and repeat settings
-                    new_date = base_date + relativedelta(**{
-                        f"{request.repeat_unit}s": request.repeat_interval * child.child_sequence
-                    })
-                    # Use super().write to bypass the child schedule date restriction
-                    super(MaintenanceRequest, child).write({'schedule_date': new_date})
-        
-        # Check other restrictions for child requests
-        for request in self:
-            if request.version == 'child':
-                restricted_fields = [
-                    'maintenance_type', 
-                    'recurring_maintenance',
-                    'repeat_interval',
-                    'repeat_unit',
-                    'repeat_type',
-                    'repeat_until',
-                    'version'
-                ]
-                # Only check restrictions for fields other than schedule_date
-                restricted_updates = set(restricted_fields) & set(vals.keys())
-                if restricted_updates:
-                    raise UserError(_("Cannot modify maintenance type or "
-                                    "recurring settings in child requests."))
-        
-        # Proceed with the standard write
-        return super().write(vals)
-
     @api.onchange('repeat_type')
     def _onchange_repeat_type(self):
         if self.repeat_type == 'until' and not self.repeat_until:
@@ -1043,22 +1127,75 @@ class MaintenanceRequest(models.Model):
             if request.stage_id and request.stage_id.sequence < request._origin.stage_id.sequence:
                 raise ValidationError(_("You cannot move a maintenance request to a previous stage. Forward progression only."))
 
-    def write(self, vals):
-        # If trying to change stage
-        if 'stage_id' in vals:
-            new_stage = self.env['maintenance.stage'].browse(vals['stage_id'])
-            for request in self:
-                # Prevent moving back to "New Request" if already "In Progress"
-                if (request.stage_id.sequence > new_stage.sequence or
-                    (request.stage_id.name == 'In Progress' and new_stage.name == 'New Request')):
-                    raise UserError(_("Cannot move maintenance request backwards in stages."))
+    def _apply_hardcoded_checklists(self):
+        """Apply hardcoded checklists based on category and subcategory"""
+        self.ensure_one()
+        
+        # First, clear existing checklist items if any
+        self.checklist_item_ids.unlink()
+        
+        category_code = self.category_id.name[:3].upper() if self.category_id and self.category_id.name else ''
+        subcategory_code = self.subcategory_id.name[:3].upper() if self.subcategory_id and self.subcategory_id.name else ''
+        
+        # Composite key for checklist lookup
+        checklist_key = f"{category_code}+{subcategory_code}"
+        
+        # Get hardcoded checklist items for this category+subcategory combo
+        checklist_items = self._get_hardcoded_checklist_items(checklist_key)
+        
+        if not checklist_items:
+            _logger.info(f"No hardcoded checklist found for {checklist_key}")
+            return
+        
+        # Create new checklist items
+        for sequence, item_name in enumerate(checklist_items, 1):
+            self.env['maintenance.checklist.item'].create({
+                'name': item_name,
+                'sequence': sequence,
+                'request_id': self.id,
+                'is_checked': False,
+                'observation': False,
+            })
+        
+        _logger.info(f"Applied {len(checklist_items)} hardcoded checklist items for {checklist_key}")
 
-        return super().write(vals)
+    def _get_hardcoded_checklist_items(self, key):
+        """Return hardcoded checklist items based on category+subcategory key"""
+        checklists = {
+            # HVC+RFT (HVAC + Roof Top) example with 5 items
+            'HVC+RFT': [
+                'Check refrigerant levels and pressure',
+                'Inspect condenser and evaporator coils for damage',
+                'Test temperature differential across supply/return',
+                'Clean or replace air filters',
+                'Check electrical connections and components'
+            ],
+            # Add more hardcoded checklists for other category+subcategory combinations
+            'HVC+AIR': [
+                'Check air handler operation',
+                'Inspect ductwork for leaks or damage',
+                'Measure airflow at registers',
+                'Test thermostat operation',
+                'Check blower motor and belt condition'
+            ],
+            'ELE+LIG': [
+                'Inspect all fixtures for damage',
+                'Test emergency lighting systems',
+                'Check for proper illumination levels',
+                'Verify switches and controls function correctly',
+                'Inspect wiring connections'
+            ],
+            'PLU+WAT': [
+                'Check for water leaks in pipes and fixtures',
+                'Test water pressure and flow',
+                'Inspect drain lines for clogs',
+                'Check water heater operation',
+                'Test shut-off valves'
+            ]
+        }
+        
+        return checklists.get(key, [])
 
-    @api.depends('equipment_id', 'equipment_id.subcategory_id')
-    def _compute_subcategory(self):
-        for request in self:
-            request.subcategory_id = request.equipment_id.subcategory_id if request.equipment_id else False
 
 class MaintenanceChecklistItem(models.Model):
     _name = 'maintenance.checklist.item'
@@ -1075,11 +1212,10 @@ class MaintenanceChecklistItem(models.Model):
 
     @api.depends('request_id.stage_id')
     def _compute_readonly_state(self):
+        """Only allow editing checklist items in 'In Progress' stage"""
         for item in self:
-            item.readonly_state = (
-                item.request_id.stage_id.name == 'New Request' or 
-                item.request_id.stage_id.done
-            )
+            # Make editable only when in "In Progress" stage
+            item.readonly_state = item.request_id.stage_id.name != 'In Progress'
 
     readonly_state = fields.Boolean(
         string='Readonly State', 
@@ -1088,18 +1224,23 @@ class MaintenanceChecklistItem(models.Model):
     )
 
     def write(self, vals):
-        """Override write to handle checkbox state changes"""
-        if 'is_checked' in vals:
-            if vals['is_checked']:
-                vals.update({
-                    'checked_by': self.env.user.id,
-                    'checked_at': fields.Datetime.now()
-                })
-            else:
-                vals.update({
-                    'checked_by': False,
-                    'checked_at': False
-                })
+        """Prevent modifications if not in In Progress stage"""
+        for record in self:
+            if record.request_id.stage_id.name != 'In Progress' and 'is_checked' in vals:
+                raise UserError(_("Checklist items can only be modified when maintenance is in progress."))
+            
+            # Update checked_by and checked_at when checkbox is checked
+            if 'is_checked' in vals:
+                if vals['is_checked']:
+                    vals.update({
+                        'checked_by': self.env.user.id,
+                        'checked_at': fields.Datetime.now()
+                    })
+                else:
+                    vals.update({
+                        'checked_by': False,
+                        'checked_at': False
+                    })
         return super().write(vals)
 
     @api.model_create_multi
