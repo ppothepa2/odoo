@@ -45,6 +45,13 @@
         <field name="implied_ids" eval="[(4, ref('group_maintenance_team'))]"/>
     </record>
 
+    <!-- Add new security group for Quality department -->
+    <record id="group_quality_department" model="res.groups">
+        <field name="name">Quality Department</field>
+        <field name="category_id" ref="module_category_maintenance"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
     <!-- Category Access Rights -->
     <record id="access_maintenance_equipment_category_user" model="ir.model.access">
         <field name="name">maintenance.equipment.category user</field>
@@ -97,7 +104,8 @@
             (4, ref('group_accounting_team')),
             (4, ref('group_department_maintenance')),
             (4, ref('group_department_validations')),
-            (4, ref('group_department_it'))
+            (4, ref('group_department_it')),
+            (4, ref('group_quality_department'))
         ]"/>
         <field name="users" eval="[(4, ref('base.user_admin'))]"/>
     </record>
@@ -118,5 +126,12 @@
         <field name="perm_write" eval="0"/>
         <field name="perm_create" eval="0"/>
         <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <record id="rule_maintenance_team_see_all_requests" model="ir.rule">
+        <field name="name">Maintenance Team: See All Requests</field>
+        <field name="model_id" ref="model_maintenance_request"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('maintenance.group_maintenance_team'))]"/>
     </record>
 </odoo> 

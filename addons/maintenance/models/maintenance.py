@@ -58,7 +58,8 @@ class MaintenanceEquipmentCategory(models.Model):
     department = fields.Selection([
         ('01', 'Maintenance (01)'),
         ('02', 'Validations (02)'),
-        ('03', 'IT (03)')
+        ('03', 'IT (03)'),
+        ('04', 'Quality (04)')
     ], string='Department', required=True, default='01', tracking=True)
 
     def _compute_equipment_count(self):
@@ -247,7 +248,8 @@ class MaintenanceEquipment(models.Model):
     department = fields.Selection([
         ('01', 'Maintenance (01)'),
         ('02', 'Validations (02)'),
-        ('03', 'IT (03)')
+        ('03', 'IT (03)'),
+        ('04', 'Quality (04)')
     ], string='Department', tracking=True)
 
     # Add equipment identifier field
@@ -266,10 +268,14 @@ class MaintenanceEquipment(models.Model):
         for equipment in self:
             maintenance_done = equipment.maintenance_ids.filtered(lambda x: x.stage_id.done)
             if len(maintenance_done) > 1:
-                dates = sorted(maintenance_done.mapped('close_date'))
-                if dates:
+                # Filter out False/None values and then sort
+                valid_dates = [date for date in maintenance_done.mapped('close_date') if date]
+                if valid_dates:
+                    dates = sorted(valid_dates)
                     delta_days = (dates[-1] - dates[0]).days
                     equipment.mtbf = delta_days / len(maintenance_done)
+                else:
+                    equipment.mtbf = 0
             else:
                 equipment.mtbf = 0
 
@@ -718,7 +724,8 @@ class MaintenanceRequest(models.Model):
     department = fields.Selection([
         ('01', 'Maintenance (01)'),
         ('02', 'Validations (02)'),
-        ('03', 'IT (03)')
+        ('03', 'IT (03)'),
+        ('04', 'Quality (04)')
     ], string='Department', tracking=True)
 
     is_recurring_locked = fields.Boolean('Recurring Locked', default=False)
@@ -729,11 +736,41 @@ class MaintenanceRequest(models.Model):
     start_date = fields.Datetime('Start Date', readonly=True, copy=False)
     can_start_maintenance = fields.Boolean(compute='_compute_can_start_maintenance')
 
+    qa_rejection_comments = fields.Text('QA Rejection Comments')
+    show_rejection_comments = fields.Boolean('Show Rejection Comments', default=False)
+
+    # Add a field to track re-addressed comments after rejection
+    qa_re_addressed_comments = fields.Text('Re-addressed Comments', 
+        help="Comments from maintenance team explaining how they addressed QA rejection issues")
+    show_re_addressed_comments = fields.Boolean('Show Re-addressed Comments Section', default=False)
+    re_addressed_completed = fields.Boolean('Re-addressed Completed', default=False)
+
+    # Add a new computed field for QA visibility
+    def _compute_can_perform_qa_review(self):
+        """Determine if user can see and perform QA review actions"""
+        for record in self:
+            # Only show QA review buttons if:
+            # 1. User is in quality department 
+            # 2. Maintenance has been finished (end_date is set)
+            is_quality_user = self.env.user.has_group('maintenance.group_quality_department')
+            
+            # Quality department should ONLY do QA review, not finish maintenance
+            record.can_perform_qa_review = is_quality_user and record.end_date
+
+    # Add this field to the class
+    can_perform_qa_review = fields.Boolean(
+        string='Can Perform QA Review', 
+        compute='_compute_can_perform_qa_review',
+        help="Technical field to control visibility of QA review buttons"
+    )
+
     @api.depends('stage_id')
     def _compute_can_finish_maintenance(self):
-        """Show Finish Maintenance button only in In Progress stage"""
+        """Show Finish Maintenance button only in In Progress stage for maintenance team"""
         for record in self:
-            record.can_finish_maintenance = record.stage_id.name == 'In Progress'
+            # Only show Finish button in In Progress stage and for maintenance team members
+            is_maintenance_team = self.env.user.has_group('maintenance.group_maintenance_team')
+            record.can_finish_maintenance = record.stage_id.name == 'In Progress' and is_maintenance_team
 
     @api.depends('stage_id')
     def _compute_can_start_maintenance(self):
@@ -742,15 +779,35 @@ class MaintenanceRequest(models.Model):
             record.can_start_maintenance = record.stage_id.name == 'New Request'
 
     def action_finish_maintenance(self):
-        """Complete maintenance and move to Repaired stage"""
-        repaired_stage = self.env['maintenance.stage'].search([('name', '=', 'Repaired')], limit=1)
-        if not repaired_stage:
-            raise UserError(_("Stage 'Repaired' not found."))
+        """Complete maintenance and move to Ready for QA Review stage only if all checklist items are checked"""
+        self.ensure_one()
         
-        return self.write({
-            'stage_id': repaired_stage.id,
+        # Check if all checklist items are checked
+        unchecked_items = self.checklist_item_ids.filtered(lambda x: not x.is_checked)
+        if unchecked_items:
+            # Get the names of unchecked items
+            unchecked_names = '\n- '.join(unchecked_items.mapped('name'))
+            raise UserError(_("Cannot finish maintenance. The following items are not checked:\n- %s") % unchecked_names)
+        
+        # If this is a re-submitted maintenance after QA rejection, check if re-addressed comments were provided
+        if self.show_re_addressed_comments and not self.re_addressed_completed:
+            raise UserError(_("Please fill in the 'Re-addressed Comments' section explaining how you addressed the QA rejection issues."))
+        
+        # Find the Ready for QA Review stage
+        qa_review_stage = self.env['maintenance.stage'].search([('name', '=', 'Ready for QA Review')], limit=1)
+        if not qa_review_stage:
+            raise UserError(_("Stage 'Ready for QA Review' not found."))
+        
+        # Move to Ready for QA Review stage and set end date
+        result = self.write({
+            'stage_id': qa_review_stage.id,
             'end_date': fields.Datetime.now()
         })
+        
+        # Trigger computation of the can_perform_qa_review field
+        self._compute_can_perform_qa_review()
+        
+        return result
 
     def action_start_maintenance(self):
         """Move request to In Progress stage and set start date"""
@@ -1195,6 +1252,97 @@ class MaintenanceRequest(models.Model):
         }
         
         return checklists.get(key, [])
+
+    def action_qa_approve(self):
+        """Approve the maintenance request and move to Approved stage"""
+        self.ensure_one()
+        approved_stage = self.env['maintenance.stage'].search([('name', '=', 'Approved')], limit=1)
+        if not approved_stage:
+            raise UserError(_("Stage 'Approved' not found."))
+        
+        # Clear all QA-related fields when approving
+        return self.write({
+            'stage_id': approved_stage.id,
+            'show_rejection_comments': False,
+            'qa_rejection_comments': False,
+            'show_re_addressed_comments': False,
+            'qa_re_addressed_comments': False,
+            're_addressed_completed': False
+        })
+
+    def action_qa_reject(self):
+        """Show rejection comments field"""
+        self.ensure_one()
+        return self.write({
+            'show_rejection_comments': True
+        })
+
+    def action_qa_submit_rejection(self):
+        """Submit rejection and move back to In Progress stage"""
+        self.ensure_one()
+        
+        if not self.qa_rejection_comments:
+            raise UserError(_("Please provide rejection comments."))
+        
+        in_progress_stage = self.env['maintenance.stage'].search([('name', '=', 'In Progress')], limit=1)
+        if not in_progress_stage:
+            raise UserError(_("Stage 'In Progress' not found."))
+        
+        # Add a message in the chatter about the rejection
+        self.message_post(
+            body=_("Maintenance request rejected and moved back to In Progress.\nRejection Comments: %s") % self.qa_rejection_comments,
+            message_type='comment'
+        )
+        
+        # Temporarily disable the constraint check for this specific action
+        # Use direct SQL to bypass ORM constraints
+        self.env.cr.execute("""
+            UPDATE maintenance_request 
+            SET stage_id = %s, show_rejection_comments = FALSE, show_re_addressed_comments = TRUE,
+                re_addressed_completed = FALSE
+            WHERE id = %s
+        """, (in_progress_stage.id, self.id))
+        
+        # Use _invalidate_cache instead of invalidate_cache
+        self.env['maintenance.request']._invalidate_cache(['stage_id', 'show_rejection_comments', 
+                                                          'show_re_addressed_comments', 're_addressed_completed'])
+        
+        return True
+
+    def action_submit_re_addressed_comments(self):
+        """Submit re-addressed comments after addressing QA rejection issues"""
+        self.ensure_one()
+        
+        if not self.qa_re_addressed_comments:
+            raise UserError(_("Please explain how you addressed the QA rejection issues."))
+        
+        # Add a message in the chatter about the re-addressed comments
+        self.message_post(
+            body=_("Maintenance team has addressed QA rejection issues.\nRe-addressed Comments: %s") % self.qa_re_addressed_comments,
+            message_type='comment'
+        )
+        
+        # Mark as completed
+        self.write({
+            're_addressed_completed': True
+        })
+        
+        return True
+
+    def _compute_can_re_address_qa_rejection(self):
+        """Determine if user can see and fill re-addressed comments section"""
+        for record in self:
+            # Only show re-address section if:
+            # 1. User is in maintenance team
+            # 2. Request shows re-addressed comments section
+            is_maintenance_team = self.env.user.has_group('maintenance.group_maintenance_team')
+            record.can_re_address_qa_rejection = is_maintenance_team and record.show_re_addressed_comments
+
+    can_re_address_qa_rejection = fields.Boolean(
+        string='Can Re-address QA Rejection',
+        compute='_compute_can_re_address_qa_rejection',
+        help="Technical field to control visibility of re-addressed comments section"
+    )
 
 
 class MaintenanceChecklistItem(models.Model):

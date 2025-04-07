@@ -84,9 +84,14 @@
         <field name="model">maintenance.request</field>
         <field name="arch" type="xml">
             <form string="Maintenance Request">
+                <field name="stage_id" invisible="1"/>
                 <field name="archive" invisible="1"/>
                 <field name="version" invisible="1"/>
                 <field name="company_id" invisible="1"/>
+                <field name="show_rejection_comments" invisible="1"/>
+                <field name="can_perform_qa_review" invisible="1"/>
+                <field name="can_re_address_qa_rejection" invisible="1"/>
+                <field name="re_addressed_completed" invisible="1"/>
                 <field name="category_id" 
                        domain="[('department', '=', department)]" 
                        options="{'no_create': True, 'no_open': True}" 
@@ -110,10 +115,10 @@
                             class="oe_highlight"
                             invisible="not can_start_maintenance"/>
                     <button name="action_finish_maintenance" 
+                            string="Finish Maintenance" 
                             type="object" 
-                            string="Finish Maintenance"
                             class="oe_highlight"
-                            groups="maintenance.group_equipment_manager"
+                            groups="maintenance.group_maintenance_team"
                             invisible="not can_finish_maintenance"/>
                 </header>
                 <sheet>
@@ -176,7 +181,7 @@
                         </page>
                         <page string="Checklist" name="checklist">
                             <field name="checklist_item_ids">
-                                <tree editable="bottom" create="1" delete="0">
+                                <tree editable="false" create="false" delete="false">
                                     <field name="sequence" widget="handle"/>
                                     <field name="name" readonly="readonly_state"/>
                                     <field name="is_checked" readonly="readonly_state"/>
@@ -186,6 +191,30 @@
                                     <field name="readonly_state" invisible="1"/>
                                 </tree>
                             </field>
+                            
+                            <!-- QA Review section -->
+                            <separator string="QA REVIEW" invisible="not can_perform_qa_review or stage_id.name == 'Approved'"/>
+                            <group name="qa_review_section" invisible="not can_perform_qa_review or stage_id.name == 'Approved'">
+                                <field name="qa_rejection_comments" invisible="not show_rejection_comments"/>
+                                <button name="action_qa_approve" string="Approve" type="object" 
+                                        class="oe_highlight" groups="maintenance.group_quality_department"
+                                        invisible="show_rejection_comments"/>
+                                <button name="action_qa_reject" string="Reject" type="object" 
+                                        groups="maintenance.group_quality_department"
+                                        invisible="show_rejection_comments"/>
+                                <button name="action_qa_submit_rejection" string="Submit Rejection" type="object" 
+                                        class="oe_highlight" groups="maintenance.group_quality_department"
+                                        invisible="not show_rejection_comments"/>
+                            </group>
+
+                            <!-- Re-addressed Comments section (only for maintenance team after rejection) -->
+                            <separator string="RE-ADDRESSED COMMENTS" invisible="not can_re_address_qa_rejection"/>
+                            <group name="re_addressed_section" invisible="not can_re_address_qa_rejection">
+                                <field name="qa_re_addressed_comments" placeholder="Explain how you addressed the QA rejection issues..."/>
+                                <button name="action_submit_re_addressed_comments" string="Submit" type="object" 
+                                        class="oe_highlight" groups="maintenance.group_maintenance_team"
+                                        invisible="re_addressed_completed"/>
+                            </group>
                         </page>
                         <page string="Children Requests" name="children_requests" 
                               invisible="version != 'main'">
