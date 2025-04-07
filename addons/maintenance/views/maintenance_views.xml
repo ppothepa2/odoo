@@ -92,6 +92,7 @@
                 <field name="can_perform_qa_review" invisible="1"/>
                 <field name="can_re_address_qa_rejection" invisible="1"/>
                 <field name="re_addressed_completed" invisible="1"/>
+                <field name="has_been_approved" invisible="1"/>
                 <field name="category_id" 
                        domain="[('department', '=', department)]" 
                        options="{'no_create': True, 'no_open': True}" 
@@ -100,12 +101,13 @@
                 <field name="field_readonly" invisible="1"/>
                 <field name="can_start_maintenance" invisible="1"/>
                 <field name="can_finish_maintenance" invisible="1"/>
+                <field name="can_submit_request" invisible="1"/>
                 <header>
                     <button name="action_submit_request" 
                             string="Submit" 
                             type="object" 
                             class="oe_highlight" 
-                            invisible="not is_in_draft_stage"/>
+                            invisible="not can_submit_request"/>
                     <button string="Cancel" name="archive_equipment_request" type="object" invisible="archive"/>
                     <button string="Reopen Request" name="reset_equipment_request" type="object" invisible="not archive"/>
                     <field name="stage_id" widget="statusbar" options="{'clickable': '1'}" invisible="archive"/>
@@ -179,11 +181,11 @@
                                        invisible="instruction_type != 'text'" nolabel="1"/>
                             </group>
                         </page>
-                        <page string="Checklist" name="checklist">
+                        <page string="Checklist" name="checklist" invisible="maintenance_type == 'corrective'">
                             <field name="checklist_item_ids">
-                                <tree editable="false" create="false" delete="false">
+                                <tree editable="bottom">
                                     <field name="sequence" widget="handle"/>
-                                    <field name="name" readonly="readonly_state"/>
+                                    <field name="name"/>
                                     <field name="is_checked" readonly="readonly_state"/>
                                     <field name="observation" readonly="readonly_state"/>
                                     <field name="checked_by" readonly="1"/>
@@ -193,17 +195,25 @@
                             </field>
                             
                             <!-- QA Review section -->
-                            <separator string="QA REVIEW" invisible="not can_perform_qa_review or stage_id.name == 'Approved'"/>
-                            <group name="qa_review_section" invisible="not can_perform_qa_review or stage_id.name == 'Approved'">
+                            <separator string="QA REVIEW" invisible="not can_perform_qa_review or stage_id.name in ['Approved', 'Scrap']"/>
+                            <group name="qa_review_section" invisible="not can_perform_qa_review or stage_id.name in ['Approved', 'Scrap']">
                                 <field name="qa_rejection_comments" invisible="not show_rejection_comments"/>
-                                <button name="action_qa_approve" string="Approve" type="object" 
-                                        class="oe_highlight" groups="maintenance.group_quality_department"
-                                        invisible="show_rejection_comments"/>
-                                <button name="action_qa_reject" string="Reject" type="object" 
+                                <button name="action_qa_approve" 
+                                        string="Approve" 
+                                        type="object" 
+                                        class="oe_highlight" 
                                         groups="maintenance.group_quality_department"
-                                        invisible="show_rejection_comments"/>
-                                <button name="action_qa_submit_rejection" string="Submit Rejection" type="object" 
-                                        class="oe_highlight" groups="maintenance.group_quality_department"
+                                        invisible="show_rejection_comments or stage_id.name in ['Approved', 'Scrap']"/>
+                                <button name="action_qa_reject" 
+                                        string="Reject" 
+                                        type="object" 
+                                        groups="maintenance.group_quality_department"
+                                        invisible="show_rejection_comments or stage_id.name in ['Approved', 'Scrap']"/>
+                                <button name="action_qa_submit_rejection" 
+                                        string="Submit Rejection" 
+                                        type="object" 
+                                        class="oe_highlight" 
+                                        groups="maintenance.group_quality_department"
                                         invisible="not show_rejection_comments"/>
                             </group>
 
@@ -215,6 +225,32 @@
                                         class="oe_highlight" groups="maintenance.group_maintenance_team"
                                         invisible="re_addressed_completed"/>
                             </group>
+                        </page>
+                        <page string="Work Description" name="corrective_work" invisible="maintenance_type != 'corrective'">
+                            <div class="text-muted mb-3">
+                                <p>Please provide a detailed description of the issue, repair work performed, and outcomes. 
+                                Minimum 100 characters required to complete the maintenance.</p>
+                                
+                                <p>Use bullet points to structure your response clearly:</p>
+                                <ul>
+                                    <li>• <b>Issue Identified:</b> Describe the problem found</li>
+                                    <li>• <b>Root Cause Analysis:</b> What caused the issue</li>
+                                    <li>• <b>Actions Taken:</b> Steps performed to fix the issue</li>
+                                    <li>• <b>Parts Replaced:</b> List any components that were replaced</li>
+                                    <li>• <b>Testing Performed:</b> How you validated the repair</li>
+                                    <li>• <b>Recommendations:</b> Any follow-up actions needed</li>
+                                </ul>
+                            </div>
+                            <field name="corrective_work_description" 
+                                   placeholder="Describe the maintenance work performed..." 
+                                   nolabel="1"
+                                   widget="text"
+                                   options="{'height': 300}"/>
+                            <div class="mt-2">
+                                <span class="text-muted">Character count: </span>
+                                <field name="corrective_work_description_length" readonly="1"/>
+                                <span>/100</span>
+                            </div>
                         </page>
                         <page string="Children Requests" name="children_requests" 
                               invisible="version != 'main'">
@@ -1301,7 +1337,7 @@
         <field name="model">maintenance.request</field>
         <field name="arch" type="xml">
             <tree string="Maintenance Schedule" 
-                  default_order="equipment_id, id desc">
+                  default_order="equipment_id, stage_id, schedule_date">
                 <field name="name" 
                        decoration-bf="version == 'main'"
                        decoration-it="version == 'child'"
@@ -1309,8 +1345,8 @@
                 <field name="version" invisible="1"/>
                 <field name="parent_id" invisible="1"/>
                 <field name="equipment_id"/>
-                <field name="schedule_date"/>
                 <field name="stage_id"/>
+                <field name="schedule_date"/>
                 <field name="priority" widget="priority"/>
                 <field name="duration"/>
                 <control>
@@ -1329,7 +1365,7 @@
         <field name="domain">[('archive', '=', False)]</field>
         <field name="context">{
             'default_version': 'main',
-            'group_by': ['equipment_id']
+            'group_by': ['equipment_id', 'stage_id']
         }</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">

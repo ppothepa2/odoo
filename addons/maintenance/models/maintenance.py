@@ -404,10 +404,15 @@ class MaintenanceEquipment(models.Model):
 
     @api.onchange('equipment_id')
     def _onchange_equipment_id(self):
+        """Update department when equipment changes, safely applying checklists"""
+        result = {}
         if self.equipment_id:
+            # Update department from equipment
             self.department = self.equipment_id.department
-            # We're not automatically creating checklists here anymore
-            # They will be created when confirming the recurring schedule
+            
+            # We're not automatically creating checklists here
+            # This will be done when submitting the request
+        return result
 
     _sql_constraints = [
         ('serial_no', 'unique(serial_no)', "Another asset already exists with this serial number!"),
@@ -673,7 +678,7 @@ class MaintenanceRequest(models.Model):
                                     string='Kanban State', required=True, default='normal', tracking=True)
     # active = fields.Boolean(default=True, help="Set active to false to hide the maintenance request without deleting it.")
     archive = fields.Boolean(default=False, help="Set archive to true to hide the maintenance request without deleting it.")
-    maintenance_type = fields.Selection([('corrective', 'Corrective'), ('preventive', 'Preventive')], string='Maintenance Type', default="corrective")
+    maintenance_type = fields.Selection([('corrective', 'Corrective'), ('preventive', 'Preventive')], string='Maintenance Type')
     schedule_date = fields.Datetime('Scheduled Date', help="Date the maintenance team plans the maintenance.  It should not differ much from the Request Date. ")
     maintenance_team_id = fields.Many2one('maintenance.team', string='Team', required=True, default=_get_default_team_id,
                                           compute='_compute_maintenance_team_id', store=True, readonly=False, check_company=True)
@@ -752,10 +757,13 @@ class MaintenanceRequest(models.Model):
             # Only show QA review buttons if:
             # 1. User is in quality department 
             # 2. Maintenance has been finished (end_date is set)
+            # 3. Request has never been approved before
             is_quality_user = self.env.user.has_group('maintenance.group_quality_department')
-            
-            # Quality department should ONLY do QA review, not finish maintenance
-            record.can_perform_qa_review = is_quality_user and record.end_date
+            record.can_perform_qa_review = (
+                is_quality_user and 
+                record.end_date and 
+                not record.has_been_approved  # Add this condition
+            )
 
     # Add this field to the class
     can_perform_qa_review = fields.Boolean(
@@ -772,22 +780,28 @@ class MaintenanceRequest(models.Model):
             is_maintenance_team = self.env.user.has_group('maintenance.group_maintenance_team')
             record.can_finish_maintenance = record.stage_id.name == 'In Progress' and is_maintenance_team
 
-    @api.depends('stage_id')
+    @api.depends('stage_id', 'maintenance_type')
     def _compute_can_start_maintenance(self):
-        """Show Start Maintenance button only in New Request stage"""
+        """Show Start Maintenance button only in New Request stage for all maintenance types"""
         for record in self:
-            record.can_start_maintenance = record.stage_id.name == 'New Request'
+            record.can_start_maintenance = record.stage_id and record.stage_id.name == 'New Request'
 
     def action_finish_maintenance(self):
-        """Complete maintenance and move to Ready for QA Review stage only if all checklist items are checked"""
+        """Complete maintenance and move to Ready for QA Review stage"""
         self.ensure_one()
         
-        # Check if all checklist items are checked
-        unchecked_items = self.checklist_item_ids.filtered(lambda x: not x.is_checked)
-        if unchecked_items:
-            # Get the names of unchecked items
-            unchecked_names = '\n- '.join(unchecked_items.mapped('name'))
-            raise UserError(_("Cannot finish maintenance. The following items are not checked:\n- %s") % unchecked_names)
+        if self.maintenance_type == 'corrective':
+            # For corrective maintenance, check work description instead of checklist
+            if not self.corrective_work_description or len(self.corrective_work_description) < 100:
+                raise UserError(_("Please provide a detailed work description of at least 100 characters "
+                                 "explaining the issue, repair work performed, and outcomes."))
+        else:
+            # For preventive maintenance, check all checklist items
+            unchecked_items = self.checklist_item_ids.filtered(lambda x: not x.is_checked)
+            if unchecked_items:
+                # Get the names of unchecked items
+                unchecked_names = '\n- '.join(unchecked_items.mapped('name'))
+                raise UserError(_("Cannot finish maintenance. The following items are not checked:\n- %s") % unchecked_names)
         
         # If this is a re-submitted maintenance after QA rejection, check if re-addressed comments were provided
         if self.show_re_addressed_comments and not self.re_addressed_completed:
@@ -810,19 +824,54 @@ class MaintenanceRequest(models.Model):
         return result
 
     def action_start_maintenance(self):
-        """Move request to In Progress stage and set start date"""
+        """
+        Move request to In Progress stage and set start date.
+        For corrective maintenance, assign the next counter number.
+        """
         in_progress_stage = self.env['maintenance.stage'].search([('name', '=', 'In Progress')], limit=1)
         if not in_progress_stage:
             raise UserError(_("Stage 'In Progress' not found."))
         
-        # This will trigger the computation of readonly_state for checklist items
-        result = self.write({
-            'stage_id': in_progress_stage.id,
-            'start_date': fields.Datetime.now()
-        })
-        
-        # Explicitly refresh the checklist items to ensure they reflect the new editable state
-        self.checklist_item_ids._compute_readonly_state()
+        # If this is a corrective maintenance, get and increment the counter for this equipment
+        if self.maintenance_type == 'corrective' and self.equipment_id:
+            # Find the highest counter for this equipment
+            highest_counter = 0
+            last_request = self.env['maintenance.request'].search([
+                ('equipment_id', '=', self.equipment_id.id),
+                ('maintenance_type', '=', 'corrective'),
+                ('corrective_counter', '>', 0)
+            ], order='corrective_counter desc', limit=1)
+            
+            if last_request:
+                highest_counter = last_request.corrective_counter
+            
+            # Increment counter
+            new_counter = highest_counter + 1
+            
+            # Get equipment ID
+            eq_id = "0000"
+            if self.equipment_id and self.equipment_id.equipment_identifier:
+                eq_parts = self.equipment_id.equipment_identifier.split('-')
+                if eq_parts:
+                    last_part = eq_parts[-1]
+                    eq_id = last_part[-4:].zfill(4)
+            
+            # Generate the new name with proper counter
+            new_name = f"CR-{eq_id}-{new_counter:02d}"
+            
+            # Set the counter and new name but don't prefill the work description
+            result = self.write({
+                'stage_id': in_progress_stage.id,
+                'start_date': fields.Datetime.now(),
+                'corrective_counter': new_counter,
+                'name': new_name
+            })
+        else:
+            # For preventive maintenance
+            result = self.write({
+                'stage_id': in_progress_stage.id,
+                'start_date': fields.Datetime.now()
+            })
         
         return result
 
@@ -844,22 +893,6 @@ class MaintenanceRequest(models.Model):
         # Calculate next schedule date
         schedule_date = self.schedule_date or fields.Datetime.now()
         
-        # Parse the main request name to build child names
-        name_parts = self.name.split('-')
-        
-        # Default values if parsing fails
-        category_code = 'UNK'
-        subcategory_code = 'NAN'
-        equipment_suffix = '0000'
-        period_code = 'X'
-        
-        # Extract parts from main request name if possible
-        if len(name_parts) == 4:
-            category_code = name_parts[0]
-            subcategory_code = name_parts[1]
-            equipment_suffix = name_parts[2]
-            period_code = name_parts[3]
-        
         # Generate child requests until repeat_until or indefinitely
         while True:
             schedule_date += relativedelta(**{f"{self.repeat_unit}s": self.repeat_interval})
@@ -868,12 +901,8 @@ class MaintenanceRequest(models.Model):
             if self.repeat_type == 'until' and schedule_date.date() > self.repeat_until:
                 break
 
-            # Generate child name with sequence
-            child_name = f"{category_code}-{subcategory_code}-{equipment_suffix}-{period_code}-C{next_sequence:02d}"
-            
-            # Create child request with the new name format
+            # Create child request with basic values first
             child_vals = {
-                'name': child_name,
                 'equipment_id': self.equipment_id.id,
                 'maintenance_type': self.maintenance_type,
                 'schedule_date': schedule_date,
@@ -895,7 +924,10 @@ class MaintenanceRequest(models.Model):
                 'is_recurring_locked': True,  # Ensure child requests are locked
                 'recurring_maintenance': False,  # Ensure child requests aren't recurring
                 'stage_id': new_request_stage.id,  # Start in New Request stage
+                'repeat_unit': self.repeat_unit,  # Copy frequency info for name generation
+                'repeat_interval': self.repeat_interval
             }
+            
             child_request = self.env['maintenance.request'].create(child_vals)
 
             # Copy the checklist items from the main request to ensure they match
@@ -909,15 +941,21 @@ class MaintenanceRequest(models.Model):
 
     def action_submit_request(self):
         """Submit the request by moving it to the 'New Request' stage."""
-        # Get the exact stage names from the database
+        # Get the New Request stage
         new_request_stage = self.env['maintenance.stage'].search([('name', '=', 'New Request')], limit=1)
         if not new_request_stage:
             raise UserError(_("Stage 'New Request' not found. Please ensure it exists."))
         
         for request in self:
-            # Ensure we're only in the Draft stage
+            # Only process requests in Draft stage
             if request.stage_id and request.stage_id.name == 'Draft':
+                # Only apply checklists for preventive maintenance
+                if request.maintenance_type == 'preventive' and not request.checklist_item_ids:
+                    request._apply_hardcoded_checklists()
+                
+                # Update the stage
                 request.write({'stage_id': new_request_stage.id})
+        
         return True
 
     def archive_equipment_request(self):
@@ -962,6 +1000,10 @@ class MaintenanceRequest(models.Model):
         maintenance_requests = super().create(vals_list)
         
         for request in maintenance_requests:
+            # Generate new name based on the pattern
+            new_name = request._generate_maintenance_request_name()
+            request.write({'name': new_name})
+            
             # If this is a child request, copy checklist items from parent
             if request.parent_id and request.version == 'child':
                 checklist_vals = []
@@ -1093,10 +1135,15 @@ class MaintenanceRequest(models.Model):
 
     @api.onchange('equipment_id')
     def _onchange_equipment_id(self):
+        """Update department when equipment changes, safely applying checklists"""
+        result = {}
         if self.equipment_id:
+            # Update department from equipment
             self.department = self.equipment_id.department
-            # We're not automatically creating checklists here anymore
-            # They will be created when confirming the recurring schedule
+            
+            # We're not automatically creating checklists here
+            # This will be done when submitting the request
+        return result
 
     def _copy_checklist_items_to_child(self, child_request):
         """Copy checklist items from main request to a child request"""
@@ -1185,24 +1232,37 @@ class MaintenanceRequest(models.Model):
                 raise ValidationError(_("You cannot move a maintenance request to a previous stage. Forward progression only."))
 
     def _apply_hardcoded_checklists(self):
-        """Apply hardcoded checklists based on category and subcategory"""
+        """Apply hardcoded checklists for preventive maintenance only"""
         self.ensure_one()
         
         # First, clear existing checklist items if any
-        self.checklist_item_ids.unlink()
+        if self.checklist_item_ids:
+            self.checklist_item_ids.unlink()
         
-        category_code = self.category_id.name[:3].upper() if self.category_id and self.category_id.name else ''
-        subcategory_code = self.subcategory_id.name[:3].upper() if self.subcategory_id and self.subcategory_id.name else ''
-        
-        # Composite key for checklist lookup
-        checklist_key = f"{category_code}+{subcategory_code}"
-        
-        # Get hardcoded checklist items for this category+subcategory combo
-        checklist_items = self._get_hardcoded_checklist_items(checklist_key)
+        # Only create checklists for preventive maintenance
+        if self.maintenance_type == 'preventive':
+            # For preventive, find category-specific checklists
+            category_code = self.category_id.name[:3].upper() if self.category_id and self.category_id.name else ''
+            subcategory_code = self.subcategory_id.name[:3].upper() if self.subcategory_id and self.subcategory_id.name else ''
+            
+            # Composite key for checklist lookup
+            checklist_key = f"{category_code}+{subcategory_code}"
+            
+            # Get hardcoded checklist items for this category+subcategory combo
+            checklist_items = self._get_hardcoded_checklist_items(checklist_key)
         
         if not checklist_items:
-            _logger.info(f"No hardcoded checklist found for {checklist_key}")
-            return
+            _logger.info(f"No checklist found for preventive maintenance with key {checklist_key}")
+            # Use default preventive checklist if none found for this equipment type
+            checklist_items = [
+                'Inspect equipment for visible wear and damage',
+                'Check and clean equipment surface',
+                'Verify proper operation of all components',
+                'Check electrical connections',
+                'Lubricate moving parts as needed',
+                'Test safety features',
+                'Verify equipment performance'
+            ]
         
         # Create new checklist items
         for sequence, item_name in enumerate(checklist_items, 1):
@@ -1214,10 +1274,11 @@ class MaintenanceRequest(models.Model):
                 'observation': False,
             })
         
-        _logger.info(f"Applied {len(checklist_items)} hardcoded checklist items for {checklist_key}")
+        _logger.info(f"Applied {len(checklist_items)} checklist items for preventive maintenance")
 
     def _get_hardcoded_checklist_items(self, key):
-        """Return hardcoded checklist items based on category+subcategory key"""
+        """Return hardcoded checklist items based on category+subcategory key for preventive maintenance"""
+        # Standard checklists for preventive maintenance
         checklists = {
             # HVC+RFT (HVAC + Roof Top) example with 5 items
             'HVC+RFT': [
@@ -1227,7 +1288,7 @@ class MaintenanceRequest(models.Model):
                 'Clean or replace air filters',
                 'Check electrical connections and components'
             ],
-            # Add more hardcoded checklists for other category+subcategory combinations
+            # Other equipment checklists
             'HVC+AIR': [
                 'Check air handler operation',
                 'Inspect ductwork for leaks or damage',
@@ -1251,6 +1312,7 @@ class MaintenanceRequest(models.Model):
             ]
         }
         
+        # Return the matching checklist or an empty list if none found
         return checklists.get(key, [])
 
     def action_qa_approve(self):
@@ -1260,9 +1322,10 @@ class MaintenanceRequest(models.Model):
         if not approved_stage:
             raise UserError(_("Stage 'Approved' not found."))
         
-        # Clear all QA-related fields when approving
+        # Set has_been_approved to True and clear all QA-related fields
         return self.write({
             'stage_id': approved_stage.id,
+            'has_been_approved': True,  # Set this flag when approving
             'show_rejection_comments': False,
             'qa_rejection_comments': False,
             'show_re_addressed_comments': False,
@@ -1298,14 +1361,18 @@ class MaintenanceRequest(models.Model):
         # Use direct SQL to bypass ORM constraints
         self.env.cr.execute("""
             UPDATE maintenance_request 
-            SET stage_id = %s, show_rejection_comments = FALSE, show_re_addressed_comments = TRUE,
-                re_addressed_completed = FALSE
+            SET stage_id = %s, 
+                show_rejection_comments = FALSE, 
+                show_re_addressed_comments = TRUE,
+                re_addressed_completed = FALSE,
+                end_date = NULL
             WHERE id = %s
         """, (in_progress_stage.id, self.id))
         
         # Use _invalidate_cache instead of invalidate_cache
         self.env['maintenance.request']._invalidate_cache(['stage_id', 'show_rejection_comments', 
-                                                          'show_re_addressed_comments', 're_addressed_completed'])
+                                                          'show_re_addressed_comments', 're_addressed_completed',
+                                                          'end_date'])
         
         return True
 
@@ -1343,6 +1410,109 @@ class MaintenanceRequest(models.Model):
         compute='_compute_can_re_address_qa_rejection',
         help="Technical field to control visibility of re-addressed comments section"
     )
+
+    # Add this field to the MaintenanceRequest class
+    has_been_approved = fields.Boolean('Has Been Approved', default=False, copy=False)
+
+    def _generate_maintenance_request_name(self):
+        """Generate name with pattern based on maintenance type:
+        - Preventive: PM-NNNN-Freq-Version
+        - Corrective: CR-NNNN-XX (where XX is the counter)
+        """
+        self.ensure_one()
+        
+        # Maintenance type prefix
+        type_prefix = "PM" if self.maintenance_type == 'preventive' else "CR"
+        
+        # Equipment identifier (last 4 digits)
+        eq_id = "0000"
+        if self.equipment_id and self.equipment_id.equipment_identifier:
+            # Extract last 4 digits or pad with zeros if shorter
+            eq_parts = self.equipment_id.equipment_identifier.split('-')
+            if eq_parts:
+                last_part = eq_parts[-1]
+                eq_id = last_part[-4:].zfill(4)
+        
+        # For corrective maintenance, use counter format (CR-NNNN-XX)
+        if self.maintenance_type == 'corrective':
+            # The counter will be assigned when clicking "Start Maintenance"
+            # For now, placeholder value until "Start Maintenance" is clicked
+            return f"{type_prefix}-{eq_id}-00"
+        
+        # For preventive maintenance, use frequency-based format
+        frequency = "Reg"  # Default
+        if self.maintenance_type == 'preventive':
+            if self.repeat_unit == 'day':
+                frequency = "Dly"
+            elif self.repeat_unit == 'week':
+                if self.repeat_interval == 1:
+                    frequency = "Wkly"
+                elif self.repeat_interval == 2:
+                    frequency = "Bi-W"
+                else:
+                    frequency = f"{self.repeat_interval}W"
+            elif self.repeat_unit == 'month':
+                if self.repeat_interval == 1:
+                    frequency = "Mon"
+                elif self.repeat_interval == 2:
+                    frequency = "Bi-M"
+                elif self.repeat_interval == 6:
+                    frequency = "Bi-A"  # Bi-Annual (6 months)
+                else:
+                    frequency = f"{self.repeat_interval}M"
+            elif self.repeat_unit == 'year':
+                if self.repeat_interval == 1:
+                    frequency = "Yrly"
+                else:
+                    frequency = f"{self.repeat_interval}Y"
+        
+        # Version suffix (Main or C01, C02, etc.)
+        version_suffix = "Main"
+        if self.version == 'child' and self.child_sequence:
+            version_suffix = f"C{self.child_sequence:02d}"
+        
+        # Construct the full name for preventive maintenance
+        return f"{type_prefix}-{eq_id}-{frequency}-{version_suffix}"
+
+    # Add a new field to track the counter for corrective maintenance per equipment
+    corrective_counter = fields.Integer('Corrective Counter', default=0, copy=False)
+
+    # Add a new compute method to determine if a "Submit" button should be visible
+    @api.depends('stage_id')
+    def _compute_can_submit_request(self):
+        """Determine if the Submit button should be visible in Draft stage"""
+        for record in self:
+            record.can_submit_request = record.stage_id and record.stage_id.name == 'Draft'
+
+    # Add this field to the MaintenanceRequest model
+    can_submit_request = fields.Boolean(
+        string='Can Submit Request', 
+        compute='_compute_can_submit_request',
+        help="Technical field to control visibility of Submit button"
+    )
+
+    # Add a new field for corrective maintenance work description
+    corrective_work_description = fields.Text(
+        'Work Description', 
+        help="Detailed description of the issue, repair work performed, and outcomes. "
+             "Minimum 100 characters required for corrective maintenance."
+    )
+
+    # Add this to the MaintenanceRequest class
+    corrective_work_description_length = fields.Integer(
+        string='Work Description Length',
+        compute='_compute_corrective_work_description_length',
+        store=False
+    )
+
+    @api.depends('corrective_work_description')
+    def _compute_corrective_work_description_length(self):
+        """Compute the length of the corrective work description"""
+        for record in self:
+            if record.corrective_work_description:
+                record.corrective_work_description_length = len(record.corrective_work_description)
+            else:
+                record.corrective_work_description_length = 0
 
 
 class MaintenanceChecklistItem(models.Model):
