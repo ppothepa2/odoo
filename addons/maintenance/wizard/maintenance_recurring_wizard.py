@@ -22,34 +22,52 @@ class MaintenanceRecurringWizard(models.TransientModel):
         self.ensure_one()
         request = self.maintenance_request_id
         
-        # Generate compact identifier components
-        category_code = request.category_id.name[:3].upper() if request.category_id and request.category_id.name else 'UNK'
-        subcategory_code = request.subcategory_id.name[:3].upper() if request.subcategory_id and request.subcategory_id.name else 'NAN'
+        # Instead of generating a custom name, use the same naming function as for child requests
+        # but update it with "M" for main
         
-        # Get equipment last 4 digits
-        equipment_suffix = '0000'
+        # Get equipment ID (last 4 digits)
+        eq_id = "0000"
         if request.equipment_id and request.equipment_id.equipment_identifier:
-            parts = request.equipment_id.equipment_identifier.split('-')
-            if len(parts) >= 5:
-                equipment_suffix = parts[4][-4:] if len(parts[4]) >= 4 else parts[4].zfill(4)
+            eq_parts = request.equipment_id.equipment_identifier.split('-')
+            if eq_parts:
+                last_part = eq_parts[-1]
+                eq_id = last_part[-4:].zfill(4)
         
-        # Single letter periodicity code
-        period_code = {
-            'day': 'D',
-            'week': 'W',
-            'month': 'M',
-            'year': 'Y',
-        }.get(self.repeat_unit, 'X')
+        # Type prefix
+        type_prefix = "PM" if request.maintenance_type == 'preventive' else "CR"
         
-        # Special cases for common intervals
-        if self.repeat_unit == 'month':
-            if self.repeat_interval == 3:
-                period_code = 'Q'  # Quarterly
-            elif self.repeat_interval == 6:
-                period_code = 'B'  # Biannual
+        # Generate frequency code consistent with _generate_maintenance_request_name method
+        frequency = "Reg"  # Default
+        if request.maintenance_type == 'preventive':
+            if self.repeat_unit == 'day':
+                frequency = "Dly"
+            elif self.repeat_unit == 'week':
+                if self.repeat_interval == 1:
+                    frequency = "Wkly"
+                elif self.repeat_interval == 2:
+                    frequency = "Bi-W"
+                else:
+                    frequency = f"{self.repeat_interval}W"
+            elif self.repeat_unit == 'month':
+                if self.repeat_interval == 1:
+                    frequency = "Mon"
+                elif self.repeat_interval == 2:
+                    frequency = "Bi-M"
+                elif self.repeat_interval == 6:
+                    frequency = "Bi-A"  # Bi-Annual (6 months)
+                else:
+                    frequency = f"{self.repeat_interval}M"
+            elif self.repeat_unit == 'year':
+                if self.repeat_interval == 1:
+                    frequency = "Yrly"
+                else:
+                    frequency = f"{self.repeat_interval}Y"
         
-        # Generate the compact identifier with dashes
-        name = f"{category_code}-{subcategory_code}-{equipment_suffix}-{period_code}"
+        # Use "M" for Main instead of "Main"
+        main_suffix = "M"
+        
+        # Generate the name with the same pattern as child requests
+        name = f"{type_prefix}-{eq_id}-{frequency}-{main_suffix}"
         
         # Update request with readonly fields
         request.write({
