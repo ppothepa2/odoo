@@ -252,6 +252,38 @@
                                     <field name="readonly_state" invisible="1"/>
                                 </tree>
                             </field>
+                            
+                            <!-- QA Review section for preventive maintenance -->
+                            <separator string="QA REVIEW" invisible="not can_perform_qa_review or stage_id.name in ['Approved', 'Scrap']"/>
+                            <group name="qa_review_section_preventive" invisible="not can_perform_qa_review or stage_id.name in ['Approved', 'Scrap']">
+                                <field name="qa_rejection_comments" invisible="not show_rejection_comments"/>
+                                <button name="action_qa_approve" 
+                                        string="Approve" 
+                                        type="object" 
+                                        class="oe_highlight" 
+                                        groups="maintenance.group_quality_department"
+                                        invisible="show_rejection_comments or stage_id.name in ['Approved', 'Scrap']"/>
+                                <button name="action_qa_reject" 
+                                        string="Reject" 
+                                        type="object" 
+                                        groups="maintenance.group_quality_department"
+                                        invisible="show_rejection_comments or stage_id.name in ['Approved', 'Scrap']"/>
+                                <button name="action_qa_submit_rejection" 
+                                        string="Submit Rejection" 
+                                        type="object" 
+                                        class="oe_highlight" 
+                                        groups="maintenance.group_quality_department"
+                                        invisible="not show_rejection_comments"/>
+                            </group>
+
+                            <!-- Re-addressed Comments section for preventive maintenance -->
+                            <separator string="RE-ADDRESSED COMMENTS" invisible="not can_re_address_qa_rejection"/>
+                            <group name="re_addressed_section_preventive" invisible="not can_re_address_qa_rejection">
+                                <field name="qa_re_addressed_comments" placeholder="Explain how you addressed the QA rejection issues..."/>
+                                <button name="action_submit_re_addressed_comments" string="Submit" type="object" 
+                                        class="oe_highlight" groups="maintenance.group_maintenance_team"
+                                        invisible="re_addressed_completed"/>
+                            </group>
                         </page>
                         <page string="Children Requests" name="children_requests" 
                               invisible="version != 'main'">
@@ -552,12 +584,14 @@
                 <field name="cost_readonly" invisible="1"/>
                 <field name="warranty_readonly" invisible="1"/>
                 <field name="department_readonly" invisible="1"/>
+                <field name="can_register" invisible="1"/>
+                <field name="is_registered" invisible="1"/>
                 <header>
                     <button name="action_register_equipment" 
-                            string="Register Equipment" 
-                            type="object" 
-                            class="oe_highlight"/>
-                    <field name="stage_id" widget="statusbar" options="{'clickable': '1'}"/>
+                            string="Register" 
+                            type="object"
+                            class="oe_highlight"
+                            invisible="not can_register"/>
                 </header>
                 <sheet>
                     <field name="company_id" invisible="1"/>
@@ -592,6 +626,16 @@
                             <field name="model" readonly="model_readonly"/>
                             <field name="cost" readonly="cost_readonly"/>
                             <field name="warranty_date" readonly="warranty_readonly"/>
+                            <div class="d-flex justify-content-start mt-3" invisible="not is_registered">
+                                <button name="action_start_corrective_maintenance" 
+                                        string="Create Corrective Request" 
+                                        type="object" 
+                                        class="btn btn-warning me-2"/>
+                                <button name="action_start_preventive_maintenance" 
+                                        string="Create Preventive Request" 
+                                        type="object" 
+                                        class="btn btn-success"/>
+                            </div>
                         </group>
                     </group>
                     <notebook>
@@ -613,7 +657,6 @@
                 </sheet>
                 <div class="oe_chatter">
                     <field name="message_follower_ids"/>
-                    <field name="activity_ids"/>
                     <field name="message_ids"/>
                 </div>
             </form>
@@ -1391,11 +1434,14 @@
             <kanban default_group_by="category_id" class="o_kanban_small_column" records_draggable="0">
                 <field name="category_id"/>
                 <field name="equipment_identifier"/>
-                <field name="registration_number"/>
-                <field name="partner_ref"/>
-                <field name="partner_id"/>
-                <field name="is_registered"/>
                 <field name="registration_date"/>
+                <field name="corrective_open_count"/>
+                <field name="corrective_closed_count"/>
+                <field name="corrective_approved_count"/>
+                <field name="preventive_open_count"/>
+                <field name="preventive_closed_count"/>
+                <field name="preventive_approved_count"/>
+                <field name="is_registered"/>
                 <templates>
                     <t t-name="kanban-box">
                         <div t-attf-class="oe_kanban_card oe_kanban_global_click mb-3" style="max-width: 300px;">
@@ -1408,20 +1454,20 @@
                                 <div class="o_kanban_record_body small">
                                     <table class="w-100">
                                         <tr class="mb-2">
-                                            <td style="width: 40%;"><strong>Registration:</strong></td>
-                                            <td><field name="registration_number"/></td>
-                                        </tr>
-                                        <tr class="mb-2">
-                                            <td><strong>PO Ref:</strong></td>
-                                            <td><field name="partner_ref"/></td>
-                                        </tr>
-                                        <tr class="mb-2">
-                                            <td><strong>Vendor:</strong></td>
-                                            <td><field name="partner_id"/></td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>Reg. Date:</strong></td>
+                                            <td style="width: 40%;"><strong>Reg. Date:</strong></td>
                                             <td><field name="registration_date" widget="date"/></td>
+                                        </tr>
+                                        <tr class="mb-2">
+                                            <td><strong>CR:</strong></td>
+                                            <td>Open: <field name="corrective_open_count"/> 
+                                                Closed: <field name="corrective_closed_count"/> 
+                                                Approved: <field name="corrective_approved_count"/></td>
+                                        </tr>
+                                        <tr class="mb-2">
+                                            <td><strong>PM:</strong></td>
+                                            <td>Open: <field name="preventive_open_count"/> 
+                                                Closed: <field name="preventive_closed_count"/> 
+                                                Approved: <field name="preventive_approved_count"/></td>
                                         </tr>
                                     </table>
                                 </div>

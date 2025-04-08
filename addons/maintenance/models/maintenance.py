@@ -214,8 +214,6 @@ class MaintenanceEquipment(models.Model):
     maintenance_open_count = fields.Integer(compute='_compute_maintenance_count', string="Number of open maintenance")
     maintenance_count = fields.Integer(compute='_compute_maintenance_count', string="Total number of maintenance")
 
-    stage_id = fields.Many2one('maintenance.stage', string='Stage', tracking=True)
-
     # Add fields to track which fields were auto-filled
     is_autofilled = fields.Boolean(string='Is Autofilled', default=False)
     autofilled_fields = fields.Text(string='Autofilled Fields', readonly=True)
@@ -262,6 +260,117 @@ class MaintenanceEquipment(models.Model):
         tracking=True,
         help="Unique identifier for equipment in format YY-DEPT-CAT-SUB-Number"
     )
+
+    # Add computed field for register button visibility
+    can_register = fields.Boolean(
+        string='Can Register',
+        compute='_compute_can_register',
+        help="Technical field to control visibility of register button"
+    )
+
+    # Add these computed fields to the MaintenanceEquipment class
+
+    # Corrective maintenance count fields
+    corrective_open_count = fields.Integer(
+        string="CR Open",
+        compute='_compute_maintenance_type_counts',
+        help="Number of open corrective maintenance requests"
+    )
+    corrective_closed_count = fields.Integer(
+        string="CR Closed",
+        compute='_compute_maintenance_type_counts',
+        help="Number of closed corrective maintenance requests"
+    )
+
+    # Preventive maintenance count fields
+    preventive_open_count = fields.Integer(
+        string="PM Open",
+        compute='_compute_maintenance_type_counts',
+        help="Number of open preventive maintenance requests"
+    )
+    preventive_closed_count = fields.Integer(
+        string="PM Closed",
+        compute='_compute_maintenance_type_counts',
+        help="Number of closed preventive maintenance requests"
+    )
+
+    # Approved maintenance count fields
+    corrective_approved_count = fields.Integer(
+        string="CR Approved",
+        compute='_compute_maintenance_type_counts',
+        help="Number of approved corrective maintenance requests"
+    )
+    preventive_approved_count = fields.Integer(
+        string="PM Approved",
+        compute='_compute_maintenance_type_counts',
+        help="Number of approved preventive maintenance requests"
+    )
+
+    def _compute_maintenance_type_counts(self):
+        """Compute counts of maintenance requests by type and status"""
+        for equipment in self:
+            # Define open stages - New Request and In Progress
+            open_stages = self.env['maintenance.stage'].search([
+                ('name', 'in', ['New Request', 'In Progress'])
+            ]).ids
+            
+            # Define closed stages - Repaired and Ready for QA Review
+            closed_stages = self.env['maintenance.stage'].search([
+                ('name', 'in', ['Repaired', 'Ready for QA Review'])
+            ]).ids
+            
+            # Define approved stage
+            approved_stage = self.env['maintenance.stage'].search([
+                ('name', '=', 'Approved')
+            ]).ids
+            
+            # Count corrective maintenance requests
+            corrective_data = self.env['maintenance.request'].read_group([
+                ('equipment_id', '=', equipment.id),
+                ('maintenance_type', '=', 'corrective')
+            ], ['stage_id'], ['stage_id'])
+            
+            # Count preventive maintenance requests
+            preventive_data = self.env['maintenance.request'].read_group([
+                ('equipment_id', '=', equipment.id),
+                ('maintenance_type', '=', 'preventive')
+            ], ['stage_id'], ['stage_id'])
+            
+            # Initialize counters
+            equipment.corrective_open_count = 0
+            equipment.corrective_closed_count = 0
+            equipment.corrective_approved_count = 0
+            equipment.preventive_open_count = 0
+            equipment.preventive_closed_count = 0
+            equipment.preventive_approved_count = 0
+            
+            # Update corrective maintenance counts
+            for data in corrective_data:
+                stage_id = data['stage_id'][0] if data['stage_id'] else False
+                count = data['__count'] if '__count' in data else data['stage_id_count']
+                if stage_id in open_stages:
+                    equipment.corrective_open_count += count
+                elif stage_id in closed_stages:
+                    equipment.corrective_closed_count += count
+                elif stage_id in approved_stage:
+                    equipment.corrective_approved_count += count
+            
+            # Update preventive maintenance counts
+            for data in preventive_data:
+                stage_id = data['stage_id'][0] if data['stage_id'] else False
+                count = data['__count'] if '__count' in data else data['stage_id_count']
+                if stage_id in open_stages:
+                    equipment.preventive_open_count += count
+                elif stage_id in closed_stages:
+                    equipment.preventive_closed_count += count
+                elif stage_id in approved_stage:
+                    equipment.preventive_approved_count += count
+
+    @api.depends('is_registered')
+    def _compute_can_register(self):
+        """Show register button if equipment is not already registered"""
+        for equipment in self:
+            equipment.can_register = not equipment.is_registered
 
     @api.depends('maintenance_ids.close_date', 'maintenance_ids.stage_id.done')
     def _compute_mtbf(self):
@@ -606,6 +715,79 @@ class MaintenanceEquipment(models.Model):
                 name = _("Unnamed Equipment")
             result.append((record.id, name))
         return result
+
+    def action_start_corrective_maintenance(self):
+        """Create and open a new corrective maintenance request for this equipment"""
+        self.ensure_one()
+        
+        # Get the Draft stage
+        draft_stage = self.env['maintenance.stage'].search([('name', '=', 'Draft')], limit=1)
+        if not draft_stage:
+            raise UserError(_("Stage 'Draft' not found."))
+        
+        # Create a new maintenance request
+        values = {
+            'equipment_id': self.id,
+            'maintenance_type': 'corrective',
+            'stage_id': draft_stage.id,
+            'department': self.department,
+            'maintenance_team_id': self.maintenance_team_id.id,
+            'owner_user_id': self.env.user.id,
+            'user_id': self.technician_user_id.id,
+            'priority': '2',  # Normal priority
+            'name': _('New Request'),  # Will be updated by the create method
+            'request_date': fields.Date.context_today(self),
+        }
+        
+        new_request = self.env['maintenance.request'].create(values)
+        
+        # Open the new request in form view
+        return {
+            'name': _('New Corrective Maintenance'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'maintenance.request',
+            'res_id': new_request.id,
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {'form_view_initial_mode': 'edit'},
+        }
+
+    def action_start_preventive_maintenance(self):
+        """Create and open a new preventive maintenance request for this equipment"""
+        self.ensure_one()
+        
+        # Get the Draft stage
+        draft_stage = self.env['maintenance.stage'].search([('name', '=', 'Draft')], limit=1)
+        if not draft_stage:
+            raise UserError(_("Stage 'Draft' not found."))
+        
+        # Create a new maintenance request
+        values = {
+            'equipment_id': self.id,
+            'maintenance_type': 'preventive',
+            'stage_id': draft_stage.id,
+            'department': self.department,
+            'maintenance_team_id': self.maintenance_team_id.id,
+            'owner_user_id': self.env.user.id,
+            'user_id': self.technician_user_id.id,
+            'priority': '2',  # Normal priority
+            'name': _('New Request'),  # Will be updated by the create method
+            'request_date': fields.Date.context_today(self),
+            'recurring_maintenance': False,  # Default to non-recurring
+        }
+        
+        new_request = self.env['maintenance.request'].create(values)
+        
+        # Open the new request in form view
+        return {
+            'name': _('New Preventive Maintenance'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'maintenance.request',
+            'res_id': new_request.id,
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {'form_view_initial_mode': 'edit'},
+        }
 
 
 class MaintenanceChecklistTemplate(models.Model):
